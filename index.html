@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>TriageLens | Client-Side Vital Sign Telemetry</title>
+  <meta name="description" content="Offline-first, client-side, zero-hardware mobile vital sign telemetry engine." />
+  <meta name="theme-color" content="#0a0b0e" />
+  <link rel="manifest" href="/manifest.webmanifest" />
+  <link rel="stylesheet" href="/src/ui/style.css" />
+</head>
+<body>
+  <header>
+    <div class="logo-area">
+      <div class="logo-icon">TL</div>
+      <div>
+        <div class="logo-title">TriageLens</div>
+        <div class="logo-subtitle">Offline rPPG Telemetry Engine</div>
+      </div>
+    </div>
+    <div class="nav-links">
+      <button id="nav-btn-history" class="nav-btn" title="Scan History">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        History
+      </button>
+      <button id="nav-btn-apk" class="nav-btn primary" title="Download Android APK">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        Download APK
+      </button>
+    </div>
+  </header>
+
+  <main>
+    <div class="grid-layout">
+      <!-- Left Column: Camera Viewport & Real-time Waveform -->
+      <section class="card">
+        <div class="card-header">
+          <div class="card-title">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+            Sensor Viewport
+          </div>
+          <div class="mode-selector">
+            <button id="mode-btn-face" class="mode-btn active">Face rPPG</button>
+            <button id="mode-btn-finger" class="mode-btn">Finger PPG</button>
+          </div>
+        </div>
+
+        <div class="camera-wrapper">
+          <video id="camera-preview" autoplay playsinline muted></video>
+          <div class="camera-overlay">
+            <div class="hud-top">
+              <span id="quality-badge" class="quality-badge">Sensor Idle</span>
+            </div>
+            <div id="face-target-box" class="face-target-box"></div>
+            <div id="finger-target-box" class="finger-target-box" style="display: none;">
+              Cover Rear Lens
+            </div>
+          </div>
+          <div id="scan-progress-bar" class="scan-progress-bar"></div>
+        </div>
+
+        <div class="waveform-container">
+          <span class="waveform-label">Pulsatile Blood Volume Signal H(t)</span>
+          <canvas id="waveform-canvas"></canvas>
+        </div>
+
+        <div class="action-row">
+          <button id="btn-start-scan" class="btn btn-primary">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+            Start 15s Clinical Scan
+          </button>
+          <button id="btn-stop-scan" class="btn btn-danger" disabled>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12"/></svg>
+            Stop
+          </button>
+        </div>
+      </section>
+
+      <!-- Right Column: Telemetry Readouts & Clinical Guidance -->
+      <section class="card">
+        <div class="card-header">
+          <div class="card-title">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+            Biometric Telemetry Readouts
+          </div>
+        </div>
+
+        <div class="telemetry-grid">
+          <!-- Heart Rate -->
+          <div class="metric-box">
+            <div class="metric-label">
+              Heart Rate
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="#ef4444" stroke="#ef4444" stroke-width="1"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+            </div>
+            <div class="metric-value-row">
+              <span id="val-heart-rate" class="metric-number">--</span>
+              <span class="metric-unit">BPM</span>
+            </div>
+            <div class="metric-status">Resting Target: 60-100</div>
+          </div>
+
+          <!-- Respiration Rate -->
+          <div class="metric-box">
+            <div class="metric-label">
+              Respiration Rate
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#06b6d4" stroke-width="2"><path d="M12 3v18"/><path d="M6 8a6 6 0 0 0 12 0"/><path d="M6 16a6 6 0 0 0 12 0"/></svg>
+            </div>
+            <div class="metric-value-row">
+              <span id="val-respiration" class="metric-number">--</span>
+              <span class="metric-unit">RPM</span>
+            </div>
+            <div class="metric-status">Resting Target: 12-20</div>
+          </div>
+
+          <!-- FAST Stroke Asymmetry -->
+          <div class="metric-box">
+            <div class="metric-label">
+              FAST Asymmetry
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M8 15s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>
+            </div>
+            <div class="metric-value-row">
+              <span id="val-asymmetry" class="metric-number">--</span>
+              <span class="metric-unit">Δ</span>
+            </div>
+            <div id="status-asymmetry" class="metric-status">Normal: &lt; 0.05</div>
+          </div>
+
+          <!-- Signal Quality Index -->
+          <div class="metric-box">
+            <div class="metric-label">
+              Signal Quality
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2"><path d="M2 20h20"/><path d="M5 20v-8"/><path d="M10 20v-5"/><path d="M15 20v-11"/><path d="M20 20v-15"/></svg>
+            </div>
+            <div class="metric-value-row">
+              <span id="val-sqi" class="metric-number">--%</span>
+              <span class="metric-unit">SQI</span>
+            </div>
+            <div class="metric-status">Threshold: ≥ 65%</div>
+          </div>
+        </div>
+
+        <!-- AI Clinical Companion Guidance Card -->
+        <div id="companion-card" class="companion-box" style="display: none;">
+          <div class="companion-header">
+            <div class="companion-title">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a10 10 0 1 0 10 10H12V2z"/></svg>
+              Clinical Interpretation
+            </div>
+            <span id="severity-pill" class="severity-pill NORMAL">NORMAL</span>
+          </div>
+          <div id="companion-summary" class="companion-text"></div>
+          <ul id="companion-advice-list" class="advice-list"></ul>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <!-- Download APK Modal -->
+  <div id="apk-modal" class="modal-backdrop">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <div class="card-title">Download TriageLens Mobile</div>
+        <button id="close-apk-modal" class="close-btn">&times;</button>
+      </div>
+      <div class="apk-download-hero">
+        <div class="apk-icon">📱</div>
+        <div style="font-weight:700; font-size:1.15rem; color:#fff;">TriageLens Android APK</div>
+        <div style="font-size:0.8rem; color:var(--text-muted); max-width:400px;">
+          Standalone, zero-hardware vital sign telemetry package with local WebAssembly & WebGL processing.
+        </div>
+        <a id="apk-direct-download" href="/triagelens-release.apk" download="triagelens-release.apk" class="btn btn-primary" style="text-decoration:none; width:auto; padding:0.65rem 1.5rem; margin-top:0.5rem;">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          Download APK (v1.0.0)
+        </a>
+      </div>
+      <div style="font-size:0.8rem; color:var(--text-muted); line-height:1.5;">
+        <strong style="color:#fff;">Option 2: Progressive Web App (PWA)</strong><br />
+        You can also install TriageLens directly onto Android or iOS without downloading an APK:
+        tap <strong>Share</strong> or <strong>Browser Menu (⋮)</strong> and select <strong>"Add to Home Screen"</strong>.
+      </div>
+    </div>
+  </div>
+
+  <!-- History Modal -->
+  <div id="history-modal" class="modal-backdrop">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <div class="card-title">Past Scan Sessions</div>
+        <button id="close-history-modal" class="close-btn">&times;</button>
+      </div>
+      <div id="history-list" class="history-list"></div>
+      <div style="display:flex; justify-content:flex-end;">
+        <button id="btn-clear-history" class="btn btn-danger" style="flex:none; padding:0.4rem 0.8rem; font-size:0.75rem;">Clear All History</button>
+      </div>
+    </div>
+  </div>
+
+  <footer>
+    <div>TriageLens Engine v1.0.0 • 100% Client-Side DSP • Zero Data Egress</div>
+    <div>Offline WebAssembly & WebGL Powered</div>
+  </footer>
+
+  <script type="module" src="/src/ui/app.ts"></script>
+</body>
+</html>
