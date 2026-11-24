@@ -54,4 +54,7 @@ export {
 export {
   getTriageGuidance,
   generateOfflineGuidance,
+  speakGuidance,
+  stopSpeaking,
+  type TtsSpeechOptions,
 } from './services/triageCompanion';

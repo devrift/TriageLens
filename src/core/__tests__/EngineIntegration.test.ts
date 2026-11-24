@@ -135,5 +135,98 @@ describe('Engine Integration & Subsystem Tests', () => {
       coordinator.destroy();
       expect(coordinator.getState()).toBe('IDLE');
     });
+
+    it('enforces 1.5s continuous bad-quality failure watchdog in ACQUIRING state', async () => {
+      const coordinator = new TriageCoordinator({
+        scanDurationMs: 15000,
+        calibrationDurationMs: 100,
+        sampleRateHz: 30,
+        minLumaThreshold: 80,
+      });
+
+      const states: string[] = [];
+      coordinator.onStateChange = (st) => states.push(st);
+
+      let capturedError: Error | null = null;
+      coordinator.onError = (err) => {
+        capturedError = err;
+      };
+
+      // Manually invoke state transition to ACQUIRING
+      (coordinator as any).transitionTo('ACQUIRING');
+      expect(coordinator.getState()).toBe('ACQUIRING');
+
+      // Create a mock video element with pitch black pixels (luma = 0 < 80)
+      const mockVideo = {
+        videoWidth: 320,
+        videoHeight: 240,
+        srcObject: null,
+        playsInline: true,
+        muted: true,
+        autoplay: true,
+      } as unknown as HTMLVideoElement;
+
+      (coordinator as any).attachedVideoEl = mockVideo;
+      (coordinator as any).isRunning = true;
+      (coordinator as any).mode = 'finger';
+
+      // Mock finger engine to report unplaced / low luma
+      (coordinator as any).fingerEngine = {
+        sampleFingerFrame: () => ({
+          rgb: [0, 0, 0],
+          luma: 0,
+          isFingerPlaced: false,
+          isPlacementValid: false,
+          signalValue: 0,
+          timestamp: 1000,
+        }),
+        destroy: () => {},
+      };
+
+      // First frame at t = 1000: initiates failure timer
+      const originalPerf = globalThis.performance;
+      let mockTime = 1000;
+      (globalThis as any).performance = { now: () => mockTime };
+
+      await (coordinator as any).processLoop();
+      expect(coordinator.getState()).toBe('ACQUIRING'); // Not yet failed
+
+      // Second frame at t = 2000 (1000ms bad quality elapsed): still within 1.5s window
+      mockTime = 2000;
+      await (coordinator as any).processLoop();
+      expect(coordinator.getState()).toBe('ACQUIRING');
+
+      // Third frame at t = 2600 (1600ms bad quality elapsed > 1500ms): must fail!
+      mockTime = 2600;
+      await (coordinator as any).processLoop();
+
+      expect(coordinator.getState()).toBe('FAILED');
+      expect(capturedError).not.toBeNull();
+      expect((capturedError as any)?.message).toContain('FINGER_OFF');
+
+      coordinator.destroy();
+      (globalThis as any).performance = originalPerf;
+    });
+  });
+
+  describe('FaceMeshEngine Landmark Edge Cases', () => {
+    it('returns zero asymmetry and safe defaults for missing or empty landmarks', () => {
+      const asymmetryEmpty = FaceMeshEngine.calculateStrokeAsymmetry([]);
+      expect(asymmetryEmpty).toBe(0.0);
+
+      const trackingEmpty = FaceMeshEngine.validateFaceTracking([]);
+      expect(trackingEmpty.isTrackingValid).toBe(false);
+      expect(trackingEmpty.reason).toBe('NO_LANDMARKS');
+    });
+
+    it('handles degenerate eye landmarks with zero distance without dividing by zero', () => {
+      const landmarks: any[] = [];
+      for (let i = 0; i < 468; i++) {
+        landmarks.push({ x: 0.5, y: 0.5, z: 0.0 });
+      }
+      const asymmetry = FaceMeshEngine.calculateStrokeAsymmetry(landmarks);
+      expect(asymmetry).toBe(0.0);
+      expect(Number.isFinite(asymmetry)).toBe(true);
+    });
   });
 });

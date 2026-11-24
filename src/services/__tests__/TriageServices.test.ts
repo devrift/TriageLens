@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import {
   saveSession,
   listSessions,
@@ -11,6 +11,8 @@ import {
 import {
   generateOfflineGuidance,
   getTriageGuidance,
+  speakGuidance,
+  stopSpeaking,
 } from '../triageCompanion';
 import { VitalsTelemetry } from '../../types/triage';
 
@@ -164,6 +166,51 @@ describe('Triage Services Test Suite', () => {
       expect(output).toBeDefined();
       expect(output.summaryText).toBeDefined();
       expect(['NORMAL', 'ELEVATED', 'CRITICAL', 'INVALID']).toContain(output.severityLevel);
+    });
+
+    it('speakGuidance resolves safely without throwing when speechSynthesis is unavailable in headless test environment', async () => {
+      const result = await speakGuidance('Test calm clinical guidance');
+      expect(typeof result).toBe('boolean');
+      expect(() => stopSpeaking()).not.toThrow();
+    });
+
+    it('speakGuidance interacts with mock speechSynthesis when present in browser environment', async () => {
+      const originalWindow = globalThis.window;
+      const mockSpeak = vi.fn((utterance: any) => {
+        utterance.onend?.();
+      });
+      const mockCancel = vi.fn();
+
+      (globalThis as any).window = {
+        speechSynthesis: {
+          speak: mockSpeak,
+          cancel: mockCancel,
+        },
+      };
+      (globalThis as any).SpeechSynthesisUtterance = class MockUtterance {
+        text: string;
+        rate: number = 1.0;
+        pitch: number = 1.0;
+        volume: number = 1.0;
+        lang: string = 'en-US';
+        onend?: () => void;
+        onerror?: () => void;
+        constructor(text: string) {
+          this.text = text;
+        }
+      };
+
+      const result = await speakGuidance('Breathe deeply and stay calm.', { rate: 0.9 });
+      expect(result).toBe(true);
+      expect(mockSpeak).toHaveBeenCalled();
+      expect(mockCancel).toHaveBeenCalled();
+
+      stopSpeaking();
+      expect(mockCancel).toHaveBeenCalledTimes(2);
+
+      // Restore
+      (globalThis as any).window = originalWindow;
+      delete (globalThis as any).SpeechSynthesisUtterance;
     });
   });
 });

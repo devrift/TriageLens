@@ -271,3 +271,55 @@ async function queryOpenRouterCompanion(input: TriageCompanionInput, apiKey: str
     generatedAt: Date.now(),
   };
 }
+
+/**
+ * Text-to-Speech (TTS) voice guidance options.
+ */
+export interface TtsSpeechOptions {
+  rate?: number;
+  pitch?: number;
+  lang?: string;
+  volume?: number;
+}
+
+/**
+ * Speak clinical guidance audio via Web Speech API with safe offline/headless fallback.
+ * Zero external network calls required.
+ */
+export function speakGuidance(text: string, options?: TtsSpeechOptions): Promise<boolean> {
+  return new Promise((resolve) => {
+    if (typeof window === 'undefined' || !window.speechSynthesis || typeof SpeechSynthesisUtterance === 'undefined') {
+      // Graceful resolution in headless / Node environment
+      resolve(false);
+      return;
+    }
+
+    try {
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.rate = options?.rate ?? 0.95; // Calm, deliberate clinical pacing
+      utterance.pitch = options?.pitch ?? 1.0;
+      utterance.volume = options?.volume ?? 1.0;
+      utterance.lang = options?.lang ?? 'en-US';
+
+      utterance.onend = () => resolve(true);
+      utterance.onerror = () => resolve(false);
+
+      window.speechSynthesis.speak(utterance);
+    } catch {
+      resolve(false);
+    }
+  });
+}
+
+/**
+ * Cancel any ongoing speech synthesis audio.
+ */
+export function stopSpeaking(): void {
+  if (typeof window !== 'undefined' && window.speechSynthesis) {
+    try {
+      window.speechSynthesis.cancel();
+    } catch {}
+  }
+}
+
