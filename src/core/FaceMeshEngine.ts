@@ -44,7 +44,9 @@ export class FaceMeshEngine {
 
   private isInitialized: boolean = false;
   private isInitializing: boolean = false;
-  private isProcessingFrame: boolean = false;
+  private isFaceMeshBusy: boolean = false;
+  private consecutiveFailures: number = 0;
+  private isMediaPipeDisabled: boolean = false;
   private latestResults: Results | null = null;
   private resolveFramePromise: ((results: Results) => void) | null = null;
   private prevNasionX: number = -1;
@@ -130,29 +132,48 @@ export class FaceMeshEngine {
     let landmarks: NormalizedLandmark[] | null = null;
 
     // 2. Try MediaPipe FaceMesh detection with concurrency guard and timeout
-    if (this.faceMesh && this.isInitialized && !this.isProcessingFrame) {
-      this.isProcessingFrame = true;
+    if (this.faceMesh && this.isInitialized && !this.isFaceMeshBusy && !this.isMediaPipeDisabled) {
+      this.isFaceMeshBusy = true;
       try {
         const resultsPromise = new Promise<Results>((resolve) => {
           this.resolveFramePromise = resolve;
         });
 
-        // Timeout race: if FaceMesh takes > 120ms (e.g. mobile GPU hitch), fall back to optical
-        const results = await Promise.race([
-          (async () => {
+        // Run .send() safely ensuring zero unhandled rejections
+        const sendAction = (async (): Promise<Results | null> => {
+          try {
             await this.faceMesh!.send({ image: videoEl });
             return await resultsPromise;
-          })(),
+          } catch {
+            return null;
+          } finally {
+            this.isFaceMeshBusy = false;
+          }
+        })();
+
+        // Timeout race: if FaceMesh takes > 120ms (e.g. mobile GPU hitch or offline delay), fall back to optical
+        const results = await Promise.race([
+          sendAction,
           new Promise<null>((resolve) => setTimeout(() => resolve(null), 120)),
         ]);
 
         if (results && results.multiFaceLandmarks && results.multiFaceLandmarks.length > 0) {
           landmarks = results.multiFaceLandmarks[0];
+          this.consecutiveFailures = 0;
+        } else {
+          this.consecutiveFailures++;
+          if (this.consecutiveFailures >= 5) {
+            // Disable MediaPipe if failing repeatedly, optical tracker takes over permanently
+            this.isMediaPipeDisabled = true;
+          }
         }
       } catch (err) {
-        console.warn('MediaPipe FaceMesh execution issue, using optical fallback:', err);
+        this.isFaceMeshBusy = false;
+        this.consecutiveFailures++;
+        if (this.consecutiveFailures >= 5) {
+          this.isMediaPipeDisabled = true;
+        }
       } finally {
-        this.isProcessingFrame = false;
         this.resolveFramePromise = null;
       }
     }
@@ -258,8 +279,8 @@ export class FaceMeshEngine {
       const meanB = sumB / pixelCount;
       const luma = 0.299 * meanR + 0.587 * meanG + 0.114 * meanB;
 
-      // Validate skin tone locus: Red dominance and sufficient brightness
-      const isSkinLocus = meanR > 35 && meanR >= meanG && luma >= 25;
+      // Validate skin tone locus: sufficient brightness and physiological reflection
+      const isSkinLocus = luma >= 12 && (meanR >= 16 || meanG >= 16);
 
       return {
         foreheadRgb: [meanR, meanG, meanB],
@@ -497,7 +518,7 @@ export class FaceMeshEngine {
     }
     this.isInitialized = false;
     this.isInitializing = false;
-    this.isProcessingFrame = false;
+    this.isFaceMeshBusy = false;
     this.latestResults = null;
     this.resolveFramePromise = null;
     this.prevNasionX = -1;

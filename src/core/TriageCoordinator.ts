@@ -146,8 +146,8 @@ export class TriageCoordinator {
    * @param videoEl Video element displaying and decoding camera stream.
    */
   public async startScan(mode: ScanMode, videoEl: HTMLVideoElement): Promise<void> {
-    if (this.state !== 'IDLE' && this.state !== 'COMPLETE' && this.state !== 'FAILED') {
-      throw new Error(`Cannot start scan while coordinator is in state: ${this.state}`);
+    if (this.isRunning) {
+      this.stopProcessing();
     }
 
     this.mode = mode;
@@ -510,6 +510,10 @@ export class TriageCoordinator {
 
     this.cameraManager.stopStream();
     this.attachedVideoEl = null;
+
+    if (this.state !== 'COMPLETE' && this.state !== 'FAILED') {
+      this.transitionTo('IDLE');
+    }
   }
 
   /**

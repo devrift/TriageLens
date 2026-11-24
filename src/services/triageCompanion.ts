@@ -16,6 +16,9 @@ import {
   TriageCompanionOutput,
 } from '../types/triage';
 
+declare const __GEMINI_API_KEY__: string | undefined;
+declare const __OPENROUTER_API_KEY__: string | undefined;
+
 /**
  * Safely inspect environment keys without logging or leaking secrets.
  */
@@ -24,11 +27,20 @@ function getApiKeys(): { geminiKey?: string; openRouterKey?: string } {
   let openRouterKey: string | undefined;
 
   try {
+    if (typeof __GEMINI_API_KEY__ !== 'undefined' && __GEMINI_API_KEY__) {
+      geminiKey = __GEMINI_API_KEY__;
+    }
+    if (typeof __OPENROUTER_API_KEY__ !== 'undefined' && __OPENROUTER_API_KEY__) {
+      openRouterKey = __OPENROUTER_API_KEY__;
+    }
+  } catch {}
+
+  try {
     // Check Vite import.meta.env
     const metaEnv = (import.meta as any)?.env;
     if (metaEnv) {
-      geminiKey = metaEnv.VITE_GEMINI_API_KEY || metaEnv.GEMINI_API_KEY;
-      openRouterKey = metaEnv.VITE_OPENROUTER_API_KEY || metaEnv.OPENROUTER_API_KEY;
+      geminiKey = geminiKey || metaEnv.VITE_GEMINI_API_KEY || metaEnv.GEMINI_API_KEY;
+      openRouterKey = openRouterKey || metaEnv.VITE_OPENROUTER_API_KEY || metaEnv.OPENROUTER_API_KEY;
     }
   } catch {}
 
@@ -159,14 +171,21 @@ export async function getTriageGuidance(input: TriageCompanionInput): Promise<Tr
     return generateOfflineGuidance(input);
   }
 
-  try {
-    if (geminiKey) {
-      return await queryGeminiCompanion(input, geminiKey);
-    } else if (openRouterKey) {
+  // Prioritize OpenRouter (gpt-4o-mini is ultra-reliable) then Gemini, cascading safely
+  if (openRouterKey) {
+    try {
       return await queryOpenRouterCompanion(input, openRouterKey);
+    } catch {
+      // If OpenRouter fails, attempt Gemini if key exists
     }
-  } catch {
-    // On any API, network, or rate-limit error, fall back seamlessly
+  }
+
+  if (geminiKey) {
+    try {
+      return await queryGeminiCompanion(input, geminiKey);
+    } catch {
+      // Fall through to offline guidance
+    }
   }
 
   return generateOfflineGuidance(input);
@@ -176,7 +195,7 @@ export async function getTriageGuidance(input: TriageCompanionInput): Promise<Tr
  * Query Google Gemini API with numerical vital signs telemetry (zero video frames transmitted).
  */
 async function queryGeminiCompanion(input: TriageCompanionInput, apiKey: string): Promise<TriageCompanionOutput> {
-  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${apiKey}`;
 
   const prompt = `You are TriageLens, a calm, reassuring, clinical triage AI assistant.
 Analyze these non-invasive vital signs collected client-side via optical telemetry:
@@ -243,7 +262,7 @@ async function queryOpenRouterCompanion(input: TriageCompanionInput, apiKey: str
       Authorization: `Bearer ${apiKey}`,
     },
     body: JSON.stringify({
-      model: 'google/gemini-flash-1.5',
+      model: 'openai/gpt-4o-mini',
       messages: [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: userContent },

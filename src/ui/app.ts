@@ -564,81 +564,125 @@ class TriageAppUI {
 
   /**
    * Smooth, authentic physiological arterial pulse waveform loop.
-   * Eliminates chaotic shaking; provides steady medical-grade monitor sweep.
+   * Eliminates erratic jumps; provides steady medical-grade monitor sweep.
    */
   private startWaveformLoop(): void {
     let animOffset = 0;
+    let rollingMaxAmp = 0.02;
 
     const draw = () => {
       if (this.waveformCtx && this.waveformCanvas) {
         const w = this.waveformCanvas.width;
         const h = this.waveformCanvas.height;
         if (w > 0 && h > 0) {
+          const dpr = window.devicePixelRatio || 1;
           this.waveformCtx.clearRect(0, 0, w, h);
 
-          const dpr = window.devicePixelRatio || 1;
+          // 1. Subtle oscilloscope background grid
+          this.waveformCtx.strokeStyle = 'rgba(255, 255, 255, 0.04)';
+          this.waveformCtx.lineWidth = 1 * dpr;
+          const gridSpacing = 22 * dpr;
+          this.waveformCtx.beginPath();
+          for (let gx = 0; gx <= w; gx += gridSpacing) {
+            this.waveformCtx.moveTo(gx, 0);
+            this.waveformCtx.lineTo(gx, h);
+          }
+          for (let gy = 0; gy <= h; gy += gridSpacing) {
+            this.waveformCtx.moveTo(0, gy);
+            this.waveformCtx.lineTo(w, gy);
+          }
+          this.waveformCtx.stroke();
+
+          // 2. Pulse wave curve
           const isScanning = this.coordinator.isScanRunning();
           const points = this.waveformPoints;
 
           this.waveformCtx.strokeStyle = '#ffffff';
-          this.waveformCtx.lineWidth = 2.4 * dpr;
-          this.waveformCtx.shadowColor = 'rgba(255, 255, 255, 0.85)';
-          this.waveformCtx.shadowBlur = 8 * dpr;
+          this.waveformCtx.lineWidth = 2.2 * dpr;
+          this.waveformCtx.shadowColor = 'rgba(255, 255, 255, 0.75)';
+          this.waveformCtx.shadowBlur = 6 * dpr;
           this.waveformCtx.lineCap = 'round';
           this.waveformCtx.lineJoin = 'round';
-          this.waveformCtx.beginPath();
 
-          animOffset += 0.035;
-
-          const numSteps = 120;
-          const dx = w / numSteps;
           const centerY = h / 2;
-          const maxAmp = h * 0.36;
+          const maxH = h * 0.38;
 
-          for (let i = 0; i <= numSteps; i++) {
-            const x = i * dx;
-            let y = centerY;
+          if (isScanning && points.length > 15) {
+            // Adaptive automatic gain control (AGC)
+            let localMax = 0.001;
+            for (let k = Math.max(0, points.length - 60); k < points.length; k++) {
+              const absVal = Math.abs(points[k]);
+              if (absVal > localMax) localMax = absVal;
+            }
+            rollingMaxAmp = rollingMaxAmp * 0.96 + localMax * 0.04;
+            const normScale = maxH / Math.max(0.008, rollingMaxAmp);
 
-            if (isScanning && points.length > 20) {
-              // Smooth interpolation over real filtered rPPG samples
-              const ptIdx = Math.floor((i / numSteps) * (points.length - 1));
-              const sample = points[ptIdx] || 0;
-              y = centerY - sample * maxAmp * 12;
-            } else {
-              // Authentic physiological arterial photoplethysmogram (PPG) pulse wave:
-              // Systolic peak, dicrotic notch, and diastolic runoff
-              const t = (i * 0.08) - animOffset;
-              const phase = ((t % 1) + 1) % 1; // 0 to 1 cycle
+            const displayCount = Math.min(points.length, 90);
+            const startIndex = points.length - displayCount;
+            const stepX = w / (displayCount - 1);
 
-              let pulseProfile = 0;
-              if (phase < 0.22) {
-                // Steep systolic upstroke
-                pulseProfile = Math.sin((phase / 0.22) * Math.PI * 0.5);
-              } else if (phase < 0.42) {
-                // Systolic decline to dicrotic notch
-                const subPhase = (phase - 0.22) / 0.20;
-                pulseProfile = 1.0 - subPhase * 0.65;
-              } else if (phase < 0.58) {
-                // Secondary dicrotic wave
-                const subPhase = (phase - 0.42) / 0.16;
-                pulseProfile = 0.35 + Math.sin(subPhase * Math.PI) * 0.22;
+            this.waveformCtx.beginPath();
+            let prevX = 0;
+            let prevY = centerY - Math.max(-maxH, Math.min(maxH, points[startIndex] * normScale));
+            this.waveformCtx.moveTo(prevX, prevY);
+
+            for (let idx = 1; idx < displayCount; idx++) {
+              const currX = idx * stepX;
+              const val = points[startIndex + idx] || 0;
+              const currY = centerY - Math.max(-maxH, Math.min(maxH, val * normScale));
+              const midX = (prevX + currX) / 2;
+              const midY = (prevY + currY) / 2;
+              this.waveformCtx.quadraticCurveTo(prevX, prevY, midX, midY);
+              prevX = currX;
+              prevY = currY;
+            }
+            this.waveformCtx.lineTo(prevX, prevY);
+            this.waveformCtx.stroke();
+          } else {
+            // Realistic resting arterial pulse wave at calm 72 BPM cadence
+            animOffset += 0.016; // ~72 BPM speed
+            const numSegments = 140;
+            const dx = w / numSegments;
+
+            this.waveformCtx.beginPath();
+            const getIdealPPG = (t: number) => {
+              const phase = ((t % 1) + 1) % 1;
+              if (phase < 0.20) {
+                // Systolic upstroke
+                return Math.sin((phase / 0.20) * (Math.PI / 2));
+              } else if (phase < 0.40) {
+                // Systolic decline
+                const s = (phase - 0.20) / 0.20;
+                return 1.0 - s * 0.65;
+              } else if (phase < 0.56) {
+                // Dicrotic peak
+                const s = (phase - 0.40) / 0.16;
+                return 0.35 + Math.sin(s * Math.PI) * 0.20;
               } else {
-                // Smooth diastolic runoff to baseline
-                const subPhase = (phase - 0.58) / 0.42;
-                pulseProfile = 0.35 * Math.exp(-subPhase * 3.5);
+                // Diastolic runoff
+                const s = (phase - 0.56) / 0.44;
+                return 0.35 * Math.exp(-s * 3.2);
               }
+            };
 
-              y = centerY - (pulseProfile - 0.3) * maxAmp;
-            }
+            let prevX = 0;
+            let prevY = centerY - (getIdealPPG(-animOffset) - 0.35) * maxH;
+            this.waveformCtx.moveTo(prevX, prevY);
 
-            if (i === 0) {
-              this.waveformCtx.moveTo(x, y);
-            } else {
-              this.waveformCtx.lineTo(x, y);
+            for (let i = 1; i <= numSegments; i++) {
+              const currX = i * dx;
+              const t = (i * 0.024) - animOffset;
+              const currY = centerY - (getIdealPPG(t) - 0.35) * maxH;
+              const midX = (prevX + currX) / 2;
+              const midY = (prevY + currY) / 2;
+              this.waveformCtx.quadraticCurveTo(prevX, prevY, midX, midY);
+              prevX = currX;
+              prevY = currY;
             }
+            this.waveformCtx.lineTo(prevX, prevY);
+            this.waveformCtx.stroke();
           }
 
-          this.waveformCtx.stroke();
           this.waveformCtx.shadowBlur = 0;
         }
       }
