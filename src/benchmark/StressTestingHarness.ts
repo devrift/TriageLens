@@ -51,7 +51,7 @@ export class StressTestingHarness {
     results.push(this.evaluateRespirationSine(84.0, 34.0, 15.0, 'Severe Tachypnea (34 RPM)', 'RESPIRATORY_EXTREME', 1.8));
 
     // 6. Severe Low Light Optical Attenuation (0.005 Signal-to-DC Ratio, SNR 3.5 dB)
-    results.push(this.evaluateLowLightSignal(74.0, 16.0, 'Low-Light Transillumination (SNR 3.5 dB)', 'OPTICAL_LOW_LIGHT'));
+    results.push(this.evaluateLowLightSignal(74.0, 'Low-Light Transillumination (SNR 3.5 dB)', 'OPTICAL_LOW_LIGHT'));
 
     // 7. Motion Artifact Dropout & Rapid Convergence Test
     results.push(this.evaluateDropoutRecovery(76.0, 'Signal Dropout & 400ms Re-convergence', 'MOTION_RECOVERY'));
@@ -182,7 +182,6 @@ export class StressTestingHarness {
 
   private static evaluateLowLightSignal(
     targetHr: number,
-    targetRr: number,
     testName: string,
     category: StressTestCaseResult['category']
   ): StressTestCaseResult {
