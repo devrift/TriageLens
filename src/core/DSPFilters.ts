@@ -75,22 +75,22 @@ export class BiquadFilter {
    * Analytical coefficients derived via Bilinear Transformation with frequency pre-warping.
    */
   public static createButterworthBandpass30Hz(): BiquadCascade {
-    // Section 1 coefficients (Q = 1.30656 pole pair mapped to digital z-plane)
+    // Section 1 coefficients (Q = 1.30656 pole pair mapped to digital z-plane, [0.70 Hz, 2.90 Hz])
     const section1: BiquadCoefficients = {
-      b0: 0.20310966801637065,
+      b0: 0.1215173912910731,
       b1: 0.0,
-      b2: -0.20310966801637065,
-      a1: -1.818598445062867,
-      a2: 0.8479211810201746,
+      b2: -0.1215173912910731,
+      a1: -1.8292526682595407,
+      a2: 0.8548864958743286,
     };
 
-    // Section 2 coefficients (Q = 0.541196 pole pair mapped to digital z-plane)
+    // Section 2 coefficients (Q = 0.541196 pole pair mapped to digital z-plane, [0.70 Hz, 2.90 Hz])
     const section2: BiquadCoefficients = {
-      b0: 0.20310966801637065,
+      b0: 0.32646591876561937,
       b1: 0.0,
-      b2: -0.20310966801637065,
-      a1: -1.3633621339049997,
-      a2: 0.6061670656714567,
+      b2: -0.32646591876561937,
+      a1: -1.382362317762067,
+      a2: 0.6101412896841377,
     };
 
     return new BiquadCascade([new BiquadFilter(section1), new BiquadFilter(section2)]);
@@ -465,7 +465,7 @@ export class PlaneOrthogonalToSkin {
  */
 export class PeakDetector {
   public static readonly WINDOW_W: number = 150;
-  public static readonly MIN_REFRACTORY_MS: number = 300.0;
+  public static readonly ABSOLUTE_MIN_REFRACTORY_MS: number = 240.0; // allows up to 250 BPM
 
   private readonly samples: Float64Array = new Float64Array(PeakDetector.WINDOW_W);
   private readonly timestamps: Float64Array = new Float64Array(PeakDetector.WINDOW_W);
@@ -473,6 +473,7 @@ export class PeakDetector {
   private count: number = 0;
 
   private lastPeakTimestamp: number = -1e9;
+  private runningTrough: number = 1e9;
   private readonly ibiHistory: Float64Array = new Float64Array(32);
   private ibiCount: number = 0;
   private ibiHead: number = 0;
@@ -484,6 +485,7 @@ export class PeakDetector {
     this.head = 0;
     this.count = 0;
     this.lastPeakTimestamp = -1e9;
+    this.runningTrough = 1e9;
     this.ibiCount = 0;
     this.ibiHead = 0;
     this.currentBpm = 0.0;
@@ -495,6 +497,8 @@ export class PeakDetector {
 
   /**
    * Process a single filtered waveform sample.
+   * Employs sub-sample parabolic interpolation and dynamic refractory lockout
+   * to eliminate discrete sampling jitter and dicrotic notch false triggering.
    * 
    * @param timestamp Monotonic timestamp (ms)
    * @param sample Filtered signal value
@@ -503,6 +507,10 @@ export class PeakDetector {
   public process(timestamp: number, sample: number): { timestamp: number; value: number; bpm: number } | null {
     if (!Number.isFinite(timestamp) || !Number.isFinite(sample)) {
       return null;
+    }
+
+    if (sample < this.runningTrough) {
+      this.runningTrough = sample;
     }
 
     const W = PeakDetector.WINDOW_W;
@@ -550,35 +558,71 @@ export class PeakDetector {
       }
       const std = Math.sqrt(varSum / this.count);
 
-      // Constraint 1: Amplitude Floor (mean + 0.4 * std)
-      const threshold = mean + 0.4 * std;
+      // Constraint 1: Amplitude Floor (mean + 0.35 * std)
+      const threshold = mean + 0.35 * std;
 
-      // Constraint 2: Refractory Lockout (>= 300 ms)
+      // Prominence check against running trough
+      const prominence = vMid - this.runningTrough;
+      const minProminence = Math.max(0.001, 0.4 * std);
+
+      // Constraint 2: Dynamic Refractory Lockout
+      // Use 52% of median IBI to lockout dicrotic notches (which occur at ~35-45% of IBI)
+      const medianIbiEstimate = this.getMedianIbi();
+      const dynamicRefractoryMs = medianIbiEstimate > 0
+        ? Math.max(PeakDetector.ABSOLUTE_MIN_REFRACTORY_MS, Math.min(500.0, 0.52 * medianIbiEstimate))
+        : PeakDetector.ABSOLUTE_MIN_REFRACTORY_MS;
+
       const deltaT = tMid - this.lastPeakTimestamp;
 
-      if (vMid > threshold && deltaT >= PeakDetector.MIN_REFRACTORY_MS) {
-        if (this.lastPeakTimestamp > 0 && deltaT <= 3000.0) {
-          const ibi = deltaT;
-          // Store IBI
-          const ibiInsert = (this.ibiHead + this.ibiCount) % this.ibiHistory.length;
-          if (this.ibiCount === this.ibiHistory.length) {
-            this.ibiHistory[this.ibiHead] = ibi;
-            this.ibiHead = (this.ibiHead + 1) % this.ibiHistory.length;
-          } else {
-            this.ibiHistory[ibiInsert] = ibi;
-            this.ibiCount++;
-          }
+      if (vMid > threshold && prominence >= minProminence && deltaT >= dynamicRefractoryMs) {
+        // Sub-sample Parabolic Interpolation for exact peak timestamp vertex
+        // Parabola: y(x) = a*x^2 + b*x + c with vertex offset delta = (y0 - y2) / (2 * (y0 - 2*y1 + y2))
+        const denom = vPrev - 2.0 * vMid + vNext;
+        let subSampleOffsetSamples = 0.0;
+        let interpolatedPeakValue = vMid;
 
-          // Calculate median IBI
-          this.currentBpm = this.calculateMedianBpm();
+        if (Math.abs(denom) > 1e-12) {
+          subSampleOffsetSamples = (vPrev - vNext) / (2.0 * denom);
+          // Clamp offset to [-0.5, 0.5] samples
+          subSampleOffsetSamples = Math.max(-0.5, Math.min(0.5, subSampleOffsetSamples));
+          interpolatedPeakValue = vMid - (denom * subSampleOffsetSamples * subSampleOffsetSamples);
         }
 
-        this.lastPeakTimestamp = tMid;
-        this.lastDetectedPeak = { timestamp: tMid, value: vMid };
+        const tPrev = this.timestamps[prevIdx];
+        const tNext = this.timestamps[nextIdx];
+        const nominalDt = (tNext - tPrev) / 2.0;
+        const exactPeakTimestamp = tMid + subSampleOffsetSamples * nominalDt;
+
+        if (this.lastPeakTimestamp > 0) {
+          const exactIbi = exactPeakTimestamp - this.lastPeakTimestamp;
+          if (exactIbi >= 240.0 && exactIbi <= 2500.0) {
+            // Outlier check: if we already have stable history, reject ectopic beats or noise spikes
+            const isOutlier = medianIbiEstimate > 0 &&
+              (exactIbi < 0.60 * medianIbiEstimate || exactIbi > 1.65 * medianIbiEstimate);
+
+            if (!isOutlier || this.ibiCount < 3) {
+              const ibiInsert = (this.ibiHead + this.ibiCount) % this.ibiHistory.length;
+              if (this.ibiCount === this.ibiHistory.length) {
+                this.ibiHistory[this.ibiHead] = exactIbi;
+                this.ibiHead = (this.ibiHead + 1) % this.ibiHistory.length;
+              } else {
+                this.ibiHistory[ibiInsert] = exactIbi;
+                this.ibiCount++;
+              }
+
+              // Update median BPM
+              this.currentBpm = this.calculateMedianBpm();
+            }
+          }
+        }
+
+        this.lastPeakTimestamp = exactPeakTimestamp;
+        this.runningTrough = vMid; // reset trough tracking from new peak
+        this.lastDetectedPeak = { timestamp: exactPeakTimestamp, value: interpolatedPeakValue };
 
         return {
-          timestamp: tMid,
-          value: vMid,
+          timestamp: exactPeakTimestamp,
+          value: interpolatedPeakValue,
           bpm: this.currentBpm,
         };
       }
@@ -595,26 +639,27 @@ export class PeakDetector {
     return this.lastDetectedPeak;
   }
 
-  /**
-   * Compute median of recorded IBIs and derive BPM = 60000 / median(IBI)
-   */
-  private calculateMedianBpm(): number {
+  private getMedianIbi(): number {
     if (this.ibiCount === 0) return 0.0;
 
-    // Copy to scratch array for sorting (max 32 elements)
     const scratch = new Float64Array(this.ibiCount);
     for (let i = 0; i < this.ibiCount; i++) {
       const idx = (this.ibiHead + i) % this.ibiHistory.length;
       scratch[i] = this.ibiHistory[idx];
     }
-
     scratch.sort();
 
     const mid = Math.floor(this.ibiCount / 2);
-    const medianIbi = this.ibiCount % 2 === 0
+    return this.ibiCount % 2 === 0
       ? (scratch[mid - 1] + scratch[mid]) / 2.0
       : scratch[mid];
+  }
 
+  /**
+   * Compute median of recorded IBIs and derive BPM = 60000 / median(IBI)
+   */
+  private calculateMedianBpm(): number {
+    const medianIbi = this.getMedianIbi();
     if (medianIbi < 1e-4) return 0.0;
     const bpm = 60000.0 / medianIbi;
     return Number.isFinite(bpm) ? bpm : 0.0;
@@ -772,13 +817,13 @@ export class SignalQualityIndex {
 
     const df = fs / N; // 30 / 256 = 0.1171875 Hz
 
-    // 4. Identify peak frequency bin in cardiac range [0.75 Hz, 3.0 Hz]
+    // 4. Identify peak frequency bin in physiological cardiac range [0.65 Hz, 3.20 Hz] (39 to 192 BPM)
     let maxPower = -1.0;
     let peakBin = -1;
 
     for (let k = 0; k < halfN; k++) {
       const freq = k * df;
-      if (freq >= 0.75 && freq <= 3.0) {
+      if (freq >= 0.65 && freq <= 3.20) {
         if (this.power[k] > maxPower) {
           maxPower = this.power[k];
           peakBin = k;
@@ -790,7 +835,20 @@ export class SignalQualityIndex {
       return { sqi: 0.0, snrDb: -99.0, peakFreqHz: 0.0 };
     }
 
-    const fCardiac = peakBin * df;
+    // Sub-bin quadratic interpolation around peakBin for continuous frequency resolution
+    let refinedPeakBin = peakBin;
+    if (peakBin > 0 && peakBin < halfN - 1) {
+      const pPrev = this.power[peakBin - 1];
+      const pMid = this.power[peakBin];
+      const pNext = this.power[peakBin + 1];
+      const denom = pPrev - 2.0 * pMid + pNext;
+      if (Math.abs(denom) > 1e-12) {
+        const deltaBin = (pPrev - pNext) / (2.0 * denom);
+        refinedPeakBin = peakBin + Math.max(-0.5, Math.min(0.5, deltaBin));
+      }
+    }
+
+    const fCardiac = refinedPeakBin * df;
 
     // 5. Integrate signal band power: [fCardiac - 0.2, fCardiac + 0.2] and harmonic [2*fCardiac - 0.2, 2*fCardiac + 0.2]
     let pSignal = 0.0;

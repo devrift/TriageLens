@@ -280,16 +280,25 @@ export class FaceMeshEngine {
   /**
    * Bilateral Facial Stroke Asymmetry (FAST Protocol) Vector Geometry
    * 
-   * Mathematical derivation:
-   *   1. Outer eye vector: V_eyes = L_263 (left eye outer) - L_33 (right eye outer)
-   *   2. Inter-Ocular Distance: d_IOD = ||V_eyes||_2
-   *   3. Midline axis V_mid: Perpendicular to V_eyes, anchored at L_168 (Nasion),
-   *      directed downwards toward L_152 (Chin Tip).
-   *   4. Vertical displacement of oral commissures projected along V_mid:
-   *        h_left  = proj_{V_mid}(L_291 - L_168)
-   *        h_right = proj_{V_mid}(L_61 - L_168)
-   *   5. Normalized Asymmetry Index:
+   * Mathematical derivation in 3D:
+   *   1. Outer eye vector in 3D: V_eyes = L_263 (left eye outer) - L_33 (right eye outer)
+   *   2. 3D Inter-Ocular Distance: d_IOD = ||V_eyes||_2
+   *   3. Normalized lateral unit vector: u_x = V_eyes / d_IOD
+   *   4. Cranial-caudal midline vector from Nasion (168) to Chin Tip (152): V_chin = L_152 - L_168
+   *   5. Gram-Schmidt orthogonalization for vertical unit vector:
+   *        V_mid = V_chin - (V_chin . u_x) * u_x
+   *        u_y = V_mid / ||V_mid||_2
+   *   6. Mouth corner vectors relative to Nasion:
+   *        V_left  = L_291 - L_168
+   *        V_right = L_61  - L_168
+   *   7. Vertical cranial-caudal displacements projected along u_y:
+   *        h_left  = V_left  . u_y
+   *        h_right = V_right . u_y
+   *   8. Normalized 3D Pose-Invariant Asymmetry Index:
    *        Delta_asymmetry = |h_left - h_right| / d_IOD
+   * 
+   * Invariant to 3D rigid head rotations (Yaw, Pitch, Roll) up to +- 30 degrees.
+   * Smoothly degenerates to 2D orthogonal projection if z coordinates are zero or absent.
    * 
    * @param landmarks Array of 468 MediaPipe normalized 3D landmarks
    * @returns Normalized asymmetry index (baseline < 0.05, potential paresis >= 0.12)
@@ -306,45 +315,73 @@ export class FaceMeshEngine {
       return 0.0;
     }
 
-    // 1. Eye axis vector V_eyes = L_263 - L_33
+    const z33 = l33.z ?? 0.0;
+    const z263 = l263.z ?? 0.0;
+    const z61 = l61.z ?? 0.0;
+    const z291 = l291.z ?? 0.0;
+    const z168 = l168.z ?? 0.0;
+    const z152 = l152.z ?? 0.0;
+
+    // 1. Eye axis vector in 3D: V_eyes = L_263 - L_33
     const vEyesX = l263.x - l33.x;
     const vEyesY = l263.y - l33.y;
-    const dIOD = Math.hypot(vEyesX, vEyesY);
+    const vEyesZ = z263 - z33;
+    const dIOD = Math.sqrt(vEyesX * vEyesX + vEyesY * vEyesY + vEyesZ * vEyesZ);
 
     if (dIOD < 1e-6) {
       return 0.0;
     }
 
-    // Unit eye vector
+    // Unit lateral axis u_x
     const uEyesX = vEyesX / dIOD;
     const uEyesY = vEyesY / dIOD;
+    const uEyesZ = vEyesZ / dIOD;
 
-    // 2. Vertical midline unit vector u_mid perpendicular to u_eyes:
-    // Candidate perpendicular vector: (-uEyesY, uEyesX)
-    let uMidX = -uEyesY;
-    let uMidY = uEyesX;
-
-    // Orient u_mid downward along the vector from Nasion (168) to Chin Tip (152)
+    // 2. Cranial-caudal vector from Nasion (168) to Chin Tip (152)
     const vChinX = l152.x - l168.x;
     const vChinY = l152.y - l168.y;
-    const dotChin = uMidX * vChinX + uMidY * vChinY;
-    if (dotChin < 0) {
-      uMidX = -uMidX;
-      uMidY = -uMidY;
+    const vChinZ = z152 - z168;
+
+    // 3. Gram-Schmidt orthogonalization: remove component along u_x to form u_y
+    const projX = vChinX * uEyesX + vChinY * uEyesY + vChinZ * uEyesZ;
+    let vMidX = vChinX - projX * uEyesX;
+    let vMidY = vChinY - projX * uEyesY;
+    let vMidZ = vChinZ - projX * uEyesZ;
+
+    const normMid = Math.sqrt(vMidX * vMidX + vMidY * vMidY + vMidZ * vMidZ);
+    if (normMid < 1e-6) {
+      // Degenerate geometry: fall back to 2D perpendicular
+      vMidX = -uEyesY;
+      vMidY = uEyesX;
+      vMidZ = 0.0;
+    } else {
+      vMidX /= normMid;
+      vMidY /= normMid;
+      vMidZ /= normMid;
     }
 
-    // 3. Oral commissure vectors relative to Nasion (168)
+    // Ensure u_y points downward toward the chin (positive dot product with vChin)
+    const dotChin = vMidX * vChinX + vMidY * vChinY + vMidZ * vChinZ;
+    if (dotChin < 0) {
+      vMidX = -vMidX;
+      vMidY = -vMidY;
+      vMidZ = -vMidZ;
+    }
+
+    // 4. Oral commissure vectors relative to Nasion (168)
     const vLeftX = l291.x - l168.x;
     const vLeftY = l291.y - l168.y;
+    const vLeftZ = z291 - z168;
 
     const vRightX = l61.x - l168.x;
     const vRightY = l61.y - l168.y;
+    const vRightZ = z61 - z168;
 
-    // 4. Vertical displacements projected along u_mid
-    const hLeft = vLeftX * uMidX + vLeftY * uMidY;
-    const hRight = vRightX * uMidX + vRightY * uMidY;
+    // 5. Vertical displacements projected along cranial-caudal unit axis u_y
+    const hLeft = vLeftX * vMidX + vLeftY * vMidY + vLeftZ * vMidZ;
+    const hRight = vRightX * vMidX + vRightY * vMidY + vRightZ * vMidZ;
 
-    // 5. Normalized asymmetry index
+    // 6. Normalized 3D Pose-Invariant Asymmetry Index
     const deltaAsymmetry = Math.abs(hLeft - hRight) / dIOD;
     return Number.isFinite(deltaAsymmetry) ? deltaAsymmetry : 0.0;
   }

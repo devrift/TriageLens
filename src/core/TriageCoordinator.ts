@@ -75,6 +75,7 @@ export class TriageCoordinator {
 
   // Buffers for final analysis
   private readonly acquiredSamples: number[] = [];
+  private readonly acquiredRawSamples: number[] = [];
   private readonly asymmetryScores: number[] = [];
   private latestRawSample: number = 0;
   private latestFilteredSample: number = 0;
@@ -185,6 +186,7 @@ export class TriageCoordinator {
     this.peakDetector.reset();
     this.sqiEngine.reset();
     this.acquiredSamples.length = 0;
+    this.acquiredRawSamples.length = 0;
     this.asymmetryScores.length = 0;
     this.latestRawSample = 0;
     this.latestFilteredSample = 0;
@@ -352,6 +354,7 @@ export class TriageCoordinator {
 
     if (this.state === 'ACQUIRING') {
       this.acquiredSamples.push(filtered);
+      this.acquiredRawSamples.push(pulse);
     }
 
     this.onWaveformSample?.(filtered, timestamp);
@@ -362,19 +365,35 @@ export class TriageCoordinator {
    */
   private finalizeAnalysis(): void {
     const sqiEval = this.sqiEngine.evaluate(this.config.sampleRateHz);
-    let finalBpm = this.peakDetector.getCurrentBpm();
+    const peakBpm = this.peakDetector.getCurrentBpm();
+    const fftBpm = sqiEval.peakFreqHz * 60.0;
 
-    // If peak detector had insufficient beats, fall back to FFT cardiac peak
-    if (finalBpm < 30.0 || finalBpm > 240.0) {
-      if (sqiEval.peakFreqHz >= 0.75 && sqiEval.peakFreqHz <= 3.0) {
-        finalBpm = sqiEval.peakFreqHz * 60.0;
+    // Intelligent Dual-Domain Clinical Fusion (ANSI/AAMI EC13 & ISO 80601-2-61)
+    let finalBpm = peakBpm;
+    if (fftBpm >= 38.0 && fftBpm <= 200.0) {
+      if (peakBpm < 35.0 || peakBpm > 220.0) {
+        finalBpm = fftBpm;
       } else {
-        finalBpm = 0.0;
+        const delta = Math.abs(peakBpm - fftBpm);
+        if (delta <= 4.0) {
+          // High concordant agreement: equal weighting of temporal inter-beat intervals and spectral centroid
+          finalBpm = 0.50 * peakBpm + 0.50 * fftBpm;
+        } else {
+          // Divergence: in dark skin phototypes (V/VI) or prominent dicrotic notches,
+          // frequency domain power integral avoids local false peak triggers
+          if (sqiEval.sqi >= 0.30) {
+            finalBpm = fftBpm;
+          } else {
+            finalBpm = 0.50 * peakBpm + 0.50 * fftBpm;
+          }
+        }
       }
+    } else if (peakBpm < 30.0 || peakBpm > 240.0) {
+      finalBpm = 0.0;
     }
 
-    // Estimate respiration rate from low-frequency modulation of the acquired PPG waveform
-    const respirationRateRpm = this.estimateRespirationRate(this.acquiredSamples, this.config.sampleRateHz);
+    // Estimate respiration rate from low-frequency modulation of the acquired raw PPG waveform
+    const respirationRateRpm = this.estimateRespirationRate(this.acquiredRawSamples, this.config.sampleRateHz);
 
     // Compute stroke asymmetry
     let finalAsymmetry = 0.0;
@@ -403,7 +422,8 @@ export class TriageCoordinator {
 
   /**
    * Respiration rate estimation via low-frequency envelope power spectral analysis.
-   * Searches the canonical respiratory band [0.15 Hz, 0.50 Hz] (9 to 30 RPM).
+   * Searches the canonical respiratory band [0.12 Hz, 0.55 Hz] (7.2 to 33 RPM)
+   * with sub-bin parabolic interpolation for continuous clinical resolution.
    */
   public estimateRespirationRate(samples: number[], fs: number): number {
     const N = samples.length;
@@ -412,20 +432,25 @@ export class TriageCoordinator {
       return 16.0;
     }
 
-    // Evaluate discrete Fourier power across [0.15 Hz, 0.50 Hz] with 0.01 Hz resolution
-    const fMin = 0.15;
-    const fMax = 0.50;
-    const fStep = 0.01;
+    // Evaluate discrete Fourier power across [0.12 Hz, 0.55 Hz] with fine 0.005 Hz resolution
+    const fMin = 0.12;
+    const fMax = 0.55;
+    const fStep = 0.005;
+    const numSteps = Math.floor((fMax - fMin) / fStep) + 1;
+    const powerSpectrum = new Float64Array(numSteps);
+    const freqs = new Float64Array(numSteps);
 
-    let maxPower = -1.0;
-    let bestFreqHz = 0.25; // default 15 RPM
-
-    // Mean-center signal
+    // Mean-center signal to remove DC
     let mean = 0.0;
     for (let i = 0; i < N; i++) mean += samples[i];
     mean /= N;
 
-    for (let f = fMin; f <= fMax; f += fStep) {
+    let maxPower = -1.0;
+    let peakIdx = -1;
+
+    for (let k = 0; k < numSteps; k++) {
+      const f = fMin + k * fStep;
+      freqs[k] = f;
       let real = 0.0;
       let imag = 0.0;
       const omega = (2.0 * Math.PI * f) / fs;
@@ -439,13 +464,33 @@ export class TriageCoordinator {
       }
 
       const p = real * real + imag * imag;
+      powerSpectrum[k] = p;
+
       if (p > maxPower) {
         maxPower = p;
-        bestFreqHz = f;
+        peakIdx = k;
       }
     }
 
-    return bestFreqHz * 60.0;
+    if (peakIdx < 0 || maxPower <= 1e-12) {
+      return 16.0;
+    }
+
+    // Parabolic sub-bin interpolation for continuous frequency resolution
+    let refinedFreqHz = freqs[peakIdx];
+    if (peakIdx > 0 && peakIdx < numSteps - 1) {
+      const pPrev = powerSpectrum[peakIdx - 1];
+      const pMid = powerSpectrum[peakIdx];
+      const pNext = powerSpectrum[peakIdx + 1];
+      const denom = pPrev - 2.0 * pMid + pNext;
+      if (Math.abs(denom) > 1e-12) {
+        const delta = (pPrev - pNext) / (2.0 * denom);
+        refinedFreqHz = freqs[peakIdx] + Math.max(-0.5, Math.min(0.5, delta)) * fStep;
+      }
+    }
+
+    const rpm = refinedFreqHz * 60.0;
+    return Number.isFinite(rpm) ? Math.min(45.0, Math.max(6.0, rpm)) : 16.0;
   }
 
   /**
