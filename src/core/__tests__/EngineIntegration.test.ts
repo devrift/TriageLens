@@ -73,6 +73,35 @@ describe('Engine Integration & Subsystem Tests', () => {
       const val = FaceMeshEngine.validateFaceTracking(landmarks);
       expect(val.isTrackingValid).toBe(true);
     });
+
+    it('safely handles unready video elements with zero dimensions without throwing', async () => {
+      const engine = new FaceMeshEngine();
+      const mockVideo = {
+        readyState: 0,
+        videoWidth: 0,
+        videoHeight: 0,
+      } as any;
+
+      const res = await engine.processFrame(mockVideo);
+      expect(res).not.toBeNull();
+      expect(res?.isTrackingValid).toBe(false);
+      expect(res?.foreheadRgb).toEqual([0, 0, 0]);
+    });
+
+    it('optical center forehead extractor provides valid fallback without crashing', () => {
+      const engine = new FaceMeshEngine();
+      // Test direct optical method execution
+      const mockVideo = {
+        readyState: 4,
+        videoWidth: 640,
+        videoHeight: 480,
+      } as any;
+
+      const res = engine.extractOpticalCenterForeheadRgb(mockVideo, 640, 480);
+      expect(res).not.toBeNull();
+      expect(typeof res.asymmetryDelta).toBe('number');
+      expect(res.asymmetryDelta).toBe(0.03);
+    });
   });
 
   describe('TriageCoordinator Respiration Rate Estimator', () => {
