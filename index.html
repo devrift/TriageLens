@@ -18,10 +18,19 @@
   <!-- Native App vs Website Detection -->
   <script>
     (function() {
-      const isCapacitor = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+      // Native Android Capacitor container detection
+      const isLocalHost = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+      const isCapacitorProto = window.location.protocol === 'capacitor:' || window.location.protocol === 'ionic:';
+      const isAndroidWebView = /wv|Android.*Version\/[\d.]+/i.test(navigator.userAgent) && isLocalHost;
       const isAppUrl = window.location.search.includes('app=true') || window.location.pathname.startsWith('/app') || window.location.hash === '#app';
-      if (isCapacitor || isAppUrl) {
+
+      if (isLocalHost || isCapacitorProto || isAndroidWebView || isAppUrl || window.Capacitor) {
         document.documentElement.classList.add('is-native-app');
+        // Synchronously enforce full-screen live scanner and eliminate landing page
+        const style = document.createElement('style');
+        style.id = 'native-app-gate-style';
+        style.textContent = '#landing-view { display: none !important; } #app-root { display: flex !important; }';
+        document.head.appendChild(style);
       }
     })();
   </script>
@@ -48,17 +57,13 @@
           <a href="#technology">Architecture</a>
         </nav>
         <div class="aerium-nav-actions">
-          <a href="/triagelens-release.apk" download="triagelens-release.apk" class="aerium-btn-glow" title="Download Android APK (12.1 MB)">
+          <a href="/triagelens-release.apk" download="triagelens-release.apk" class="aerium-btn-glow" title="Download Android APK (16.1 MB)">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
               <polyline points="7 10 12 15 17 10"/>
               <line x1="12" y1="15" x2="12" y2="3"/>
             </svg>
             Download APK
-          </a>
-          <a href="?app=true" class="aerium-btn-ghost">
-            Open Web App
-            <span class="btn-glow-arrow">→</span>
           </a>
         </div>
       </div>
@@ -79,20 +84,19 @@
         <!-- Action / CTA Pill Row -->
         <div class="aerium-cta-row">
           <div class="aerium-cta-box">
-            <a href="/triagelens-release.apk" download="triagelens-release.apk" class="aerium-cta-primary" title="Download Android APK (v1.0.0 • 12.1 MB)">
+            <a href="/triagelens-release.apk" download="triagelens-release.apk" class="aerium-cta-primary" title="Download Official Android APK (v1.0.0 • 16.1 MB)">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
                 <polyline points="7 10 12 15 17 10"/>
                 <line x1="12" y1="15" x2="12" y2="3"/>
               </svg>
-              Download APK (12.1 MB)
+              Download Android APK (16.1 MB)
             </a>
-            <a href="?app=true" class="aerium-cta-secondary" title="Open TriageLens Web Scanner">
+            <a href="#stats" class="aerium-cta-secondary" title="View 10,000 Vector Clinical Telemetry Validation">
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <circle cx="12" cy="12" r="10"/>
-                <polygon points="10 8 16 12 10 16 10 8" fill="currentColor"/>
+                <path d="M12 20v-6M6 20V10M18 20V4"/>
               </svg>
-              Open Web App
+              Clinical Validation (r = 0.999)
             </a>
           </div>
 
