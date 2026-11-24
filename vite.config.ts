@@ -1,10 +1,18 @@
-import { defineConfig } from 'vite';
+import { defineConfig, loadEnv } from 'vite';
 import { resolve } from 'path';
 
-export default defineConfig(() => {
+export default defineConfig(({ mode }) => {
   const isLib = process.env.BUILD_LIB === 'true';
+  const env = loadEnv(mode, process.cwd(), '');
 
   return {
+    envPrefix: ['VITE_', 'GEMINI_', 'OPENROUTER_'],
+    define: {
+      'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY || process.env.GEMINI_API_KEY || ''),
+      'process.env.OPENROUTER_API_KEY': JSON.stringify(env.OPENROUTER_API_KEY || process.env.OPENROUTER_API_KEY || ''),
+      'import.meta.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY || process.env.GEMINI_API_KEY || ''),
+      'import.meta.env.OPENROUTER_API_KEY': JSON.stringify(env.OPENROUTER_API_KEY || process.env.OPENROUTER_API_KEY || ''),
+    },
     build: isLib
       ? {
           lib: {

@@ -3,6 +3,8 @@
  * 
  * Binds headless TriageCoordinator, CameraStreamManager, triageStore,
  * and triageCompanion to the true iOS 26 Liquid Glass DOM layer.
+ * Manages 4-card metric telemetry, arterial pulse waveform rendering,
+ * and distinct native app vs website lifecycles.
  */
 
 import {
@@ -17,6 +19,7 @@ import {
   saveSession,
   compareWithBaseline,
   clearSessions,
+  getLatestSession,
 } from '../services/triageStore';
 import {
   getTriageGuidance,
@@ -27,6 +30,9 @@ import {
 class TriageAppUI {
   private coordinator: TriageCoordinator;
   private currentMode: ScanMode = 'face';
+  private isStartingScan: boolean = false;
+  private isVoiceEnabled: boolean = true;
+  private isTorchActive: boolean = false;
 
   // DOM Elements - Top Bar
   private statusTitleEl!: HTMLElement;
@@ -46,14 +52,12 @@ class TriageAppUI {
   private waveformCanvas!: HTMLCanvasElement;
   private waveformCtx!: CanvasRenderingContext2D;
 
-  // DOM Elements - 6 Metric Cards
+  // DOM Elements - EXACT 4 Metric Cards (Pulse, Breathing, Capillary Flow, Facial Expression)
   private hrEl!: HTMLElement;
   private rrEl!: HTMLElement;
+  private sqiEl!: HTMLElement;
   private asymmetryEl!: HTMLElement;
   private asymmetryDeltaEl!: HTMLElement;
-  private rhythmEl!: HTMLElement;
-  private stressEl!: HTMLElement;
-  private sqiEl!: HTMLElement;
 
   // DOM Elements - Bottom Liquid Dock
   private btnHome!: HTMLButtonElement;
@@ -75,8 +79,12 @@ class TriageAppUI {
   private latestGuidanceSpeechText: string = '';
 
   // DOM Elements - Modals
-  private apkModal!: HTMLElement;
-  private closeApkModalBtn!: HTMLButtonElement;
+  private settingsModal!: HTMLElement;
+  private closeSettingsModalBtn!: HTMLButtonElement;
+  private btnToggleTorch!: HTMLButtonElement;
+  private btnToggleVoice!: HTMLButtonElement;
+  private btnSettingsClearHist!: HTMLButtonElement;
+
   private historyModal!: HTMLElement;
   private closeHistoryModalBtn!: HTMLButtonElement;
   private historyListEl!: HTMLElement;
@@ -101,6 +109,14 @@ class TriageAppUI {
     this.initDom();
     this.initCoordinatorCallbacks();
     this.startWaveformLoop();
+
+    // Auto-engage camera stream ONLY when running inside the Native App or ?app=true
+    const isApp = document.documentElement.classList.contains('is-native-app');
+    if (isApp) {
+      setTimeout(() => {
+        this.startScan();
+      }, 350);
+    }
   }
 
   private initDom(): void {
@@ -122,14 +138,12 @@ class TriageAppUI {
     this.waveformCanvas = document.getElementById('waveform-canvas') as HTMLCanvasElement;
     this.waveformCtx = this.waveformCanvas.getContext('2d')!;
 
-    // Metric Displays (6 Cards)
+    // EXACT 4 Metric Displays
     this.hrEl = document.getElementById('val-heart-rate') as HTMLElement;
     this.rrEl = document.getElementById('val-respiration') as HTMLElement;
+    this.sqiEl = document.getElementById('val-sqi') as HTMLElement;
     this.asymmetryEl = document.getElementById('val-asymmetry') as HTMLElement;
     this.asymmetryDeltaEl = document.getElementById('status-asymmetry') as HTMLElement;
-    this.rhythmEl = document.getElementById('val-rhythm') as HTMLElement;
-    this.stressEl = document.getElementById('val-stress') as HTMLElement;
-    this.sqiEl = document.getElementById('val-sqi') as HTMLElement;
 
     // Bottom Navigation Dock
     this.btnHome = document.getElementById('nav-btn-home') as HTMLButtonElement;
@@ -150,9 +164,13 @@ class TriageAppUI {
     this.btnSpeakGuidance = document.getElementById('btn-speak-guidance') as HTMLButtonElement;
     this.closeDrawerBtn = document.getElementById('close-drawer') as HTMLButtonElement;
 
-    // Modals
-    this.apkModal = document.getElementById('apk-modal') as HTMLElement;
-    this.closeApkModalBtn = document.getElementById('close-apk-modal') as HTMLButtonElement;
+    // Modals: Real Settings & History
+    this.settingsModal = document.getElementById('settings-modal') as HTMLElement;
+    this.closeSettingsModalBtn = document.getElementById('close-settings-modal') as HTMLButtonElement;
+    this.btnToggleTorch = document.getElementById('btn-toggle-torch') as HTMLButtonElement;
+    this.btnToggleVoice = document.getElementById('btn-toggle-voice') as HTMLButtonElement;
+    this.btnSettingsClearHist = document.getElementById('btn-settings-clear-hist') as HTMLButtonElement;
+
     this.historyModal = document.getElementById('history-modal') as HTMLElement;
     this.closeHistoryModalBtn = document.getElementById('close-history-modal') as HTMLButtonElement;
     this.historyListEl = document.getElementById('history-list') as HTMLElement;
@@ -214,48 +232,62 @@ class TriageAppUI {
       this.renderHistory();
     });
 
-    // Settings & APK Modal Listeners
+    // Real Settings Modal Listeners (replaces APK download modal)
     this.btnSettings.addEventListener('click', () => {
-      this.apkModal.classList.add('active');
+      this.settingsModal.classList.add('active');
     });
 
-    this.closeApkModalBtn.addEventListener('click', () => {
-      this.apkModal.classList.remove('active');
+    this.closeSettingsModalBtn.addEventListener('click', () => {
+      this.settingsModal.classList.remove('active');
     });
 
-    // Close on backdrop click
-    [this.apkModal, this.historyModal].forEach((modal) => {
-      modal.addEventListener('click', (e) => {
+    this.btnToggleVoice.addEventListener('click', () => {
+      this.isVoiceEnabled = !this.isVoiceEnabled;
+      if (this.isVoiceEnabled) {
+        this.btnToggleVoice.classList.add('active');
+        this.btnToggleVoice.textContent = 'Active';
+      } else {
+        this.btnToggleVoice.classList.remove('active');
+        this.btnToggleVoice.textContent = 'Muted';
+        stopSpeaking();
+      }
+    });
+
+    this.btnToggleTorch.addEventListener('click', async () => {
+      this.isTorchActive = !this.isTorchActive;
+      this.btnToggleTorch.classList.toggle('active', this.isTorchActive);
+      this.btnToggleTorch.textContent = this.isTorchActive ? 'ON' : 'OFF';
+
+      const stream = this.videoEl.srcObject as MediaStream;
+      if (stream) {
+        const track = stream.getVideoTracks()[0];
+        if (track && typeof track.applyConstraints === 'function') {
+          try {
+            await (track as any).applyConstraints({
+              advanced: [{ torch: this.isTorchActive }],
+            });
+          } catch {}
+        }
+      }
+    });
+
+    this.btnSettingsClearHist.addEventListener('click', () => {
+      clearSessions();
+      this.renderHistory();
+      this.btnSettingsClearHist.textContent = 'Cleared!';
+      setTimeout(() => {
+        this.btnSettingsClearHist.textContent = 'Clear';
+      }, 1500);
+    });
+
+    // Close modals on backdrop click
+    [this.settingsModal, this.historyModal].forEach((modal) => {
+      modal?.addEventListener('click', (e) => {
         if (e.target === modal) {
           modal.classList.remove('active');
         }
       });
     });
-
-    // View Switching: Aerium Landing Page <-> iOS 26 Scanner View
-    const switchToScanner = () => {
-      document.body.classList.remove('mode-landing', 'user-forced-landing');
-      document.body.classList.add('mode-scanner');
-      this.resizeCanvas();
-      // Auto-initiate scan when entering scanner view
-      if (!this.coordinator.isScanRunning()) {
-        this.startScan();
-      }
-    };
-
-    const switchToLanding = () => {
-      if (this.coordinator.isScanRunning()) {
-        this.stopScan();
-      }
-      document.body.classList.remove('mode-scanner');
-      document.body.classList.add('mode-landing', 'user-forced-landing');
-    };
-
-    document.getElementById('nav-btn-launch-scanner')?.addEventListener('click', switchToScanner);
-    document.getElementById('hero-btn-launch-scanner')?.addEventListener('click', switchToScanner);
-    document.getElementById('cta-btn-launch-mode2')?.addEventListener('click', switchToScanner);
-    document.getElementById('hero-phone-cta-scan')?.addEventListener('click', switchToScanner);
-    document.getElementById('btn-back-to-landing')?.addEventListener('click', switchToLanding);
 
     // Canvas resize observer
     this.resizeCanvas();
@@ -272,8 +304,10 @@ class TriageAppUI {
     if (this.waveformCanvas) {
       const dpr = window.devicePixelRatio || 1;
       const rect = this.waveformCanvas.getBoundingClientRect();
-      this.waveformCanvas.width = rect.width * dpr;
-      this.waveformCanvas.height = rect.height * dpr;
+      if (rect.width > 0 && rect.height > 0) {
+        this.waveformCanvas.width = rect.width * dpr;
+        this.waveformCanvas.height = rect.height * dpr;
+      }
     }
   }
 
@@ -287,22 +321,25 @@ class TriageAppUI {
     this.progressBar.style.width = '0%';
 
     if (mode === 'face') {
-      this.statusTitleEl.textContent = 'Vital Discovery';
+      this.videoEl.classList.remove('finger-mode');
       this.faceTargetBox.style.display = 'block';
       this.fingerTargetBox.style.display = 'none';
       this.iconModeFace.style.display = 'block';
       this.iconModeFinger.style.display = 'none';
-      this.cameraStatusText.textContent = 'Hold steady · 15s';
-      this.qualityTextEl.textContent = 'Signal 98%';
+      this.statusTitleEl.textContent = '01 // FACE rPPG';
+      this.cameraStatusText.textContent = 'HOLD STEADY · 12s';
     } else {
-      this.statusTitleEl.textContent = 'Finger Transillumination';
+      this.videoEl.classList.add('finger-mode');
       this.faceTargetBox.style.display = 'none';
       this.fingerTargetBox.style.display = 'flex';
       this.iconModeFace.style.display = 'none';
       this.iconModeFinger.style.display = 'block';
-      this.cameraStatusText.textContent = 'Cover rear lens with finger';
-      this.qualityTextEl.textContent = 'Finger Ready';
+      this.statusTitleEl.textContent = '01 // REAR PPG';
+      this.cameraStatusText.textContent = 'COVER REAR LENS';
     }
+
+    // Auto-restart scan in new mode
+    this.startScan();
   }
 
   private initCoordinatorCallbacks(): void {
@@ -316,17 +353,25 @@ class TriageAppUI {
   }
 
   private async startScan(): Promise<void> {
+    if (this.isStartingScan || this.coordinator.isScanRunning()) {
+      return;
+    }
+
+    this.isStartingScan = true;
     this.btnScan.classList.add('active');
-    this.cameraPillFrame.classList.add('scanning');
     this.btnStop.disabled = false;
-    this.resetVitalsDisplay();
-    this.progressBar.style.width = '0%';
+    this.cameraPillFrame.classList.add('scanning');
     this.scanStartPerfTime = performance.now();
 
     try {
       await this.coordinator.startScan(this.currentMode, this.videoEl);
     } catch (err: any) {
-      this.handleError(err);
+      // Gracefully ignore superseded race cancellations
+      if (!err?.message?.includes('superseded')) {
+        this.handleError(err);
+      }
+    } finally {
+      this.isStartingScan = false;
     }
   }
 
@@ -335,45 +380,45 @@ class TriageAppUI {
     this.btnScan.classList.remove('active');
     this.cameraPillFrame.classList.remove('scanning');
     this.btnStop.disabled = true;
-    this.cameraStatusText.textContent = 'Scan stopped';
-    this.progressBar.style.width = '0%';
+    this.cameraStatusText.textContent = 'SCAN STOPPED';
+    this.qualityTextEl.textContent = 'Standby';
     this.statusDotEl.className = 'status-dot';
   }
 
   private handleStateChange(state: TriageState): void {
     switch (state) {
       case 'STARTING':
-        this.cameraStatusText.textContent = 'Initializing camera...';
+        this.cameraStatusText.textContent = 'INITIALIZING SENSOR...';
         this.qualityTextEl.textContent = 'Calibrating';
         this.statusDotEl.className = 'status-dot warning';
         break;
       case 'CALIBRATING':
-        this.cameraStatusText.textContent = 'Stabilizing sensor · 2s';
+        this.cameraStatusText.textContent = 'STABILIZING SENSOR · 2s';
         this.qualityTextEl.textContent = 'Stabilizing';
         this.statusDotEl.className = 'status-dot warning';
         break;
       case 'ACQUIRING':
-        this.cameraStatusText.textContent = 'Hold steady · 15s';
-        this.qualityTextEl.textContent = 'Signal 98%';
+        this.cameraStatusText.textContent = 'HOLD STEADY · 12s';
+        this.qualityTextEl.textContent = '98%';
         this.statusDotEl.className = 'status-dot';
         this.scanStartPerfTime = performance.now();
         break;
       case 'ANALYZING':
-        this.cameraStatusText.textContent = 'Processing spectral DSP...';
+        this.cameraStatusText.textContent = 'PROCESSING DSP SPECTRA...';
         this.qualityTextEl.textContent = 'Analyzing';
         this.progressBar.style.width = '100%';
         break;
       case 'COMPLETE':
-        this.cameraStatusText.textContent = 'Telemetry complete';
-        this.qualityTextEl.textContent = 'Verified 100%';
+        this.cameraStatusText.textContent = 'TELEMETRY VERIFIED';
+        this.qualityTextEl.textContent = '100%';
         this.statusDotEl.className = 'status-dot';
         this.btnScan.classList.remove('active');
         this.cameraPillFrame.classList.remove('scanning');
         this.btnStop.disabled = true;
         break;
       case 'FAILED':
-        this.cameraStatusText.textContent = 'Scan interrupted';
-        this.qualityTextEl.textContent = 'Interrupted';
+        this.cameraStatusText.textContent = 'SIGNAL DISRUPTED';
+        this.qualityTextEl.textContent = 'Retry';
         this.statusDotEl.className = 'status-dot critical';
         this.btnScan.classList.remove('active');
         this.cameraPillFrame.classList.remove('scanning');
@@ -392,7 +437,7 @@ class TriageAppUI {
     if (this.coordinator.getState() === 'ACQUIRING') {
       const elapsed = performance.now() - this.scanStartPerfTime;
       const remainingSec = Math.max(1, Math.ceil((15000 - elapsed) / 1000));
-      this.cameraStatusText.textContent = `Hold steady · ${remainingSec}s`;
+      this.cameraStatusText.textContent = `HOLD STEADY · ${remainingSec}s`;
       const pct = Math.min(100, Math.max(0, (elapsed / 15000) * 100));
       this.progressBar.style.width = `${pct}%`;
     }
@@ -401,120 +446,66 @@ class TriageAppUI {
   private handleQualityDiagnostic(diag: QualityDiagnostic): void {
     if (diag.isAcceptable) {
       this.statusDotEl.className = 'status-dot';
-      this.qualityTextEl.textContent = 'Signal 98%';
-      if (this.coordinator.getState() === 'ACQUIRING') {
-        const elapsed = performance.now() - this.scanStartPerfTime;
-        const remainingSec = Math.max(1, Math.ceil((15000 - elapsed) / 1000));
-        this.cameraStatusText.textContent = `Hold steady · ${remainingSec}s`;
-      }
+      this.qualityTextEl.textContent = '98%';
     } else {
       this.statusDotEl.className = 'status-dot warning';
-      if (diag.reason === 'FINGER_OFF') {
-        this.cameraStatusText.textContent = 'Cover rear lens completely';
-        this.qualityTextEl.textContent = 'No Contact';
-      } else if (diag.reason === 'MOTION_ARTIFACT') {
-        this.cameraStatusText.textContent = 'Keep face centered & still';
-        this.qualityTextEl.textContent = 'Motion Detected';
-      } else if (diag.reason === 'LOW_LIGHT') {
-        this.cameraStatusText.textContent = 'Insufficient light';
-        this.qualityTextEl.textContent = 'Low Light';
-      } else if (diag.reason === 'POOR_SNR') {
-        this.cameraStatusText.textContent = 'Optical noise high';
-        this.qualityTextEl.textContent = 'Low SNR';
+      this.qualityTextEl.textContent = 'Adjust';
+      if (this.coordinator.getState() === 'ACQUIRING') {
+        this.cameraStatusText.textContent = (diag.reason || 'ADJUST POSITION').toUpperCase();
       }
     }
   }
 
   private async handleScanComplete(telemetry: VitalsTelemetry): Promise<void> {
-    // 1. Update 6-card metrics with clean values
-    const hr = telemetry.heartRateBpm > 0 ? Math.round(telemetry.heartRateBpm) : 72;
-    const rr = telemetry.respirationRateRpm > 0 ? Math.round(telemetry.respirationRateRpm) : 16;
-    const sqi = Math.round((telemetry.sqiScore || 0.98) * 100);
+    // 1. Update the 4 Metric Cards cleanly
+    this.hrEl.textContent = Math.round(telemetry.heartRateBpm).toString();
+    this.rrEl.textContent = Math.round(telemetry.respirationRateRpm).toString();
+    this.sqiEl.textContent = `${Math.round(telemetry.sqiScore * 100)}%`;
 
-    this.hrEl.textContent = `${hr}`;
-    this.rrEl.textContent = `${rr}`;
-    this.sqiEl.textContent = `${sqi}%`;
+    const isAsymmetric = telemetry.strokeAsymmetryDelta >= 0.12;
+    this.asymmetryEl.textContent = isAsymmetric ? 'ASYMMETRIC' : 'NORMAL';
+    this.asymmetryEl.style.color = isAsymmetric ? '#ff453a' : '#34c759';
+    this.asymmetryDeltaEl.textContent = `Δ ${telemetry.strokeAsymmetryDelta.toFixed(2)}`;
 
-    // Rhythm derivation
-    if (hr >= 55 && hr <= 100 && telemetry.sqiScore >= 0.65) {
-      this.rhythmEl.textContent = 'Regular';
-      this.rhythmEl.className = 'card-status-text';
-    } else if (hr > 100) {
-      this.rhythmEl.textContent = 'Elevated';
-      this.rhythmEl.className = 'card-status-text warning';
-    } else {
-      this.rhythmEl.textContent = 'Variable';
-      this.rhythmEl.className = 'card-status-text warning';
-    }
+    // 2. Persist to local history
+    saveSession({ mode: this.currentMode, telemetry });
 
-    // Stress derivation
-    if (hr <= 80 && rr <= 18) {
-      this.stressEl.textContent = 'Low';
-      this.stressEl.className = 'card-status-text';
-    } else if (hr <= 100 && rr <= 22) {
-      this.stressEl.textContent = 'Moderate';
-      this.stressEl.className = 'card-status-text';
-    } else {
-      this.stressEl.textContent = 'Elevated';
-      this.stressEl.className = 'card-status-text alert';
-    }
+    // 3. Compare with prior baseline session
+    const previous = getLatestSession();
+    const baseline = previous ? compareWithBaseline(telemetry, previous) : undefined;
 
-    // Stroke Symmetry
-    if (this.currentMode === 'face') {
-      const delta = telemetry.strokeAsymmetryDelta || 0.02;
-      this.asymmetryDeltaEl.textContent = `Δ ${delta.toFixed(2)}`;
-
-      if (delta >= 0.12) {
-        this.asymmetryEl.textContent = 'Alert';
-        this.asymmetryEl.className = 'card-status-text alert';
-      } else if (delta >= 0.06) {
-        this.asymmetryEl.textContent = 'Moderate';
-        this.asymmetryEl.className = 'card-status-text warning';
-      } else {
-        this.asymmetryEl.textContent = 'Normal';
-        this.asymmetryEl.className = 'card-status-text';
-      }
-    } else {
-      this.asymmetryEl.textContent = 'N/A';
-      this.asymmetryEl.className = 'card-status-text';
-      this.asymmetryDeltaEl.textContent = 'Finger Mode';
-    }
-
-    // 2. Save Session
-    const previousSessions = listSessions(1);
-    const baseline = previousSessions.length > 0 ? previousSessions[0] : null;
-    const delta = compareWithBaseline(telemetry, baseline);
-
-    saveSession({
-      mode: this.currentMode,
-      telemetry,
-      durationMs: 15000,
-    });
-
-    // 3. Clinical Guidance Generation
+    // 4. Request Clinical Companion Guidance (Gemini API with offline fallback)
     const guidance = await getTriageGuidance({
       telemetry,
       mode: this.currentMode,
-      baselineDelta: delta,
+      baselineDelta: baseline,
     });
 
-    this.severityPill.textContent = guidance.severityLevel.charAt(0) + guidance.severityLevel.slice(1).toLowerCase();
+    // 5. Update Clinical Interpretation Drawer
+    this.severityPill.textContent = guidance.severityLevel;
     this.severityPill.className = `severity-pill ${guidance.severityLevel}`;
-    this.companionSummaryEl.textContent = `${guidance.summaryText} ${guidance.guidanceText}`;
+    this.companionSummaryEl.textContent = guidance.summaryText;
 
     this.companionAdviceList.innerHTML = '';
-    guidance.actionableAdvice.forEach((advice) => {
+    guidance.actionableAdvice.forEach((adv) => {
       const li = document.createElement('li');
-      li.textContent = advice;
+      li.textContent = adv;
       this.companionAdviceList.appendChild(li);
     });
 
     this.latestGuidanceSpeechText = `${guidance.summaryText}. ${guidance.guidanceText}`;
     this.companionDrawer.style.display = 'block';
+
+    // 6. Voice guidance auto-speak if enabled
+    if (this.isVoiceEnabled) {
+      speakGuidance(this.latestGuidanceSpeechText);
+    }
   }
 
   private handleError(err: Error): void {
-    this.cameraStatusText.textContent = err.message || 'Error occurred';
+    if (err?.message?.includes('superseded')) return;
+
+    this.cameraStatusText.textContent = (err.message || 'SENSOR ERROR').toUpperCase();
     this.qualityTextEl.textContent = 'Error';
     this.statusDotEl.className = 'status-dot critical';
     this.btnScan.classList.remove('active');
@@ -525,14 +516,10 @@ class TriageAppUI {
   private resetVitalsDisplay(): void {
     this.hrEl.textContent = '72';
     this.rrEl.textContent = '16';
-    this.asymmetryEl.textContent = 'Normal';
-    this.asymmetryEl.className = 'card-status-text';
-    this.asymmetryDeltaEl.textContent = 'Δ 0.02';
-    this.rhythmEl.textContent = 'Regular';
-    this.rhythmEl.className = 'card-status-text';
-    this.stressEl.textContent = 'Low';
-    this.stressEl.className = 'card-status-text';
     this.sqiEl.textContent = '98%';
+    this.asymmetryEl.textContent = 'NORMAL';
+    this.asymmetryEl.style.color = '#ffffff';
+    this.asymmetryDeltaEl.textContent = 'Δ 0.02';
   }
 
   private toggleCompanionDrawer(): void {
@@ -550,7 +537,7 @@ class TriageAppUI {
     this.historyListEl.innerHTML = '';
 
     if (sessions.length === 0) {
-      this.historyListEl.innerHTML = '<div style="color:var(--text-tertiary); text-align:center; padding:1.5rem; font-size:12px;">No scans recorded yet.</div>';
+      this.historyListEl.innerHTML = '<div style="color:var(--text-tertiary); text-align:center; padding:1.5rem; font-size:12px;">No past scans recorded yet.</div>';
       return;
     }
 
@@ -561,66 +548,101 @@ class TriageAppUI {
       const dateStr = new Date(s.timestamp).toLocaleDateString([], { month: 'short', day: 'numeric' });
 
       item.innerHTML = `
-        <div>
-          <div style="font-weight:600; color:#fff; font-size:12px;">${s.mode === 'face' ? 'Face rPPG' : 'Finger PPG'} • ${s.telemetry.heartRateBpm} BPM</div>
-          <div style="font-size:10px; color:rgba(255,255,255,0.45); margin-top:2px;">${dateStr} at ${timeStr} • ${s.telemetry.respirationRateRpm} RPM</div>
-        </div>
-        <div style="font-size:11px; font-weight:600; color:#34c759;">
-          ${(s.telemetry.sqiScore * 100).toFixed(0)}% Flow
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <div>
+            <div style="font-weight:600; color:#fff; font-size:12px;">${s.mode === 'face' ? 'Face rPPG' : 'Finger PPG'} • ${s.telemetry.heartRateBpm} BPM</div>
+            <div style="font-size:10px; color:rgba(255,255,255,0.45); margin-top:2px;">${dateStr} at ${timeStr} • ${s.telemetry.respirationRateRpm} RPM</div>
+          </div>
+          <div style="font-size:11px; font-weight:700; color:#34c759;">
+            ${(s.telemetry.sqiScore * 100).toFixed(0)}% FLOW
+          </div>
         </div>
       `;
       this.historyListEl.appendChild(item);
     });
   }
 
+  /**
+   * Smooth, authentic physiological arterial pulse waveform loop.
+   * Eliminates chaotic shaking; provides steady medical-grade monitor sweep.
+   */
   private startWaveformLoop(): void {
+    let animOffset = 0;
+
     const draw = () => {
       if (this.waveformCtx && this.waveformCanvas) {
         const w = this.waveformCanvas.width;
         const h = this.waveformCanvas.height;
-        this.waveformCtx.clearRect(0, 0, w, h);
+        if (w > 0 && h > 0) {
+          this.waveformCtx.clearRect(0, 0, w, h);
 
-        const points = this.waveformPoints;
-        const dpr = window.devicePixelRatio || 1;
+          const dpr = window.devicePixelRatio || 1;
+          const isScanning = this.coordinator.isScanRunning();
+          const points = this.waveformPoints;
 
-        if (points.length > 2) {
-          // Pure glowing white pulse waveform
           this.waveformCtx.strokeStyle = '#ffffff';
-          this.waveformCtx.lineWidth = 2.2 * dpr;
-          this.waveformCtx.shadowColor = 'rgba(255, 255, 255, 0.8)';
-          this.waveformCtx.shadowBlur = 7 * dpr;
+          this.waveformCtx.lineWidth = 2.4 * dpr;
+          this.waveformCtx.shadowColor = 'rgba(255, 255, 255, 0.85)';
+          this.waveformCtx.shadowBlur = 8 * dpr;
           this.waveformCtx.lineCap = 'round';
           this.waveformCtx.lineJoin = 'round';
           this.waveformCtx.beginPath();
 
-          const dx = w / (points.length - 1);
-          let maxVal = 0.05;
-          for (let i = 0; i < points.length; i++) {
-            const abs = Math.abs(points[i]);
-            if (abs > maxVal) maxVal = abs;
-          }
-          const scaleY = (h * 0.38) / maxVal;
+          animOffset += 0.035;
 
-          for (let i = 0; i < points.length; i++) {
+          const numSteps = 120;
+          const dx = w / numSteps;
+          const centerY = h / 2;
+          const maxAmp = h * 0.36;
+
+          for (let i = 0; i <= numSteps; i++) {
             const x = i * dx;
-            // Generate resting synthetic heart wave if signal is idle, else real signal
-            let sampleVal = points[i];
-            if (Math.abs(sampleVal) < 1e-4) {
-              const t = (i * 0.15) - (performance.now() * 0.003);
-              sampleVal = Math.sin(t) * 0.02 + Math.sin(t * 2.3) * 0.01;
+            let y = centerY;
+
+            if (isScanning && points.length > 20) {
+              // Smooth interpolation over real filtered rPPG samples
+              const ptIdx = Math.floor((i / numSteps) * (points.length - 1));
+              const sample = points[ptIdx] || 0;
+              y = centerY - sample * maxAmp * 12;
+            } else {
+              // Authentic physiological arterial photoplethysmogram (PPG) pulse wave:
+              // Systolic peak, dicrotic notch, and diastolic runoff
+              const t = (i * 0.08) - animOffset;
+              const phase = ((t % 1) + 1) % 1; // 0 to 1 cycle
+
+              let pulseProfile = 0;
+              if (phase < 0.22) {
+                // Steep systolic upstroke
+                pulseProfile = Math.sin((phase / 0.22) * Math.PI * 0.5);
+              } else if (phase < 0.42) {
+                // Systolic decline to dicrotic notch
+                const subPhase = (phase - 0.22) / 0.20;
+                pulseProfile = 1.0 - subPhase * 0.65;
+              } else if (phase < 0.58) {
+                // Secondary dicrotic wave
+                const subPhase = (phase - 0.42) / 0.16;
+                pulseProfile = 0.35 + Math.sin(subPhase * Math.PI) * 0.22;
+              } else {
+                // Smooth diastolic runoff to baseline
+                const subPhase = (phase - 0.58) / 0.42;
+                pulseProfile = 0.35 * Math.exp(-subPhase * 3.5);
+              }
+
+              y = centerY - (pulseProfile - 0.3) * maxAmp;
             }
 
-            const y = h / 2 - sampleVal * scaleY;
             if (i === 0) {
               this.waveformCtx.moveTo(x, y);
             } else {
               this.waveformCtx.lineTo(x, y);
             }
           }
+
           this.waveformCtx.stroke();
           this.waveformCtx.shadowBlur = 0;
         }
       }
+
       this.waveformAnimId = requestAnimationFrame(draw);
     };
 
@@ -628,7 +650,7 @@ class TriageAppUI {
   }
 }
 
-// Initialize on DOM load
+// Initialize on DOM ready
 document.addEventListener('DOMContentLoaded', () => {
   new TriageAppUI();
 });

@@ -13,12 +13,18 @@ export class CameraStreamManager {
   private attachedVideoEl: HTMLVideoElement | null = null;
   private isTorchActive: boolean = false;
   private activeRequestId: number = 0;
+  private inFlightAcquire: Promise<MediaStream> | null = null;
+  private activeFacingMode: 'user' | 'environment' | null = null;
 
   /**
    * Start front-facing camera stream optimized for facial rPPG telemetry:
    * 640x480 @ 30 FPS ideal constraints.
    */
   public async startFaceStream(videoEl: HTMLVideoElement): Promise<MediaStream> {
+    if (this.currentStream && this.currentStream.active && this.activeFacingMode === 'user' && this.attachedVideoEl === videoEl) {
+      return this.currentStream;
+    }
+
     const constraints: MediaStreamConstraints = {
       audio: false,
       video: {
@@ -29,7 +35,7 @@ export class CameraStreamManager {
       },
     };
 
-    return this.acquireStream(videoEl, constraints, false);
+    return this.acquireStream(videoEl, constraints, false, 'user');
   }
 
   /**
@@ -37,6 +43,10 @@ export class CameraStreamManager {
    * 320x240 @ 30 FPS ideal constraints with white LED torch engaged when supported.
    */
   public async startFingerStream(videoEl: HTMLVideoElement): Promise<MediaStream> {
+    if (this.currentStream && this.currentStream.active && this.activeFacingMode === 'environment' && this.attachedVideoEl === videoEl) {
+      return this.currentStream;
+    }
+
     const constraints: MediaStreamConstraints = {
       audio: false,
       video: {
@@ -47,7 +57,7 @@ export class CameraStreamManager {
       },
     };
 
-    return this.acquireStream(videoEl, constraints, true);
+    return this.acquireStream(videoEl, constraints, true, 'environment');
   }
 
   /**
@@ -56,57 +66,80 @@ export class CameraStreamManager {
   private async acquireStream(
     videoEl: HTMLVideoElement,
     constraints: MediaStreamConstraints,
-    attemptTorch: boolean
+    attemptTorch: boolean,
+    facingMode: 'user' | 'environment'
   ): Promise<MediaStream> {
+    // If an acquisition with matching parameters is already in flight, await it
+    if (this.inFlightAcquire && this.activeFacingMode === facingMode) {
+      return this.inFlightAcquire;
+    }
+
     const requestId = ++this.activeRequestId;
-    this.stopStream(videoEl);
+    this.activeFacingMode = facingMode;
 
-    if (typeof navigator === 'undefined' || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      throw new CameraStreamError('CAMERA_NOT_FOUND', 'MediaDevices API is not supported in this runtime environment.');
-    }
+    const acquirePromise: Promise<MediaStream> = (async (): Promise<MediaStream> => {
+      this.stopStream(videoEl);
 
-    let stream: MediaStream;
-    try {
-      stream = await navigator.mediaDevices.getUserMedia(constraints);
-    } catch (err: any) {
-      if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
-        throw new CameraStreamError('CAMERA_PERMISSION_DENIED', 'Camera access was denied by the user or security policy.');
-      } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
-        throw new CameraStreamError('CAMERA_NOT_FOUND', 'Requested camera device was not found on this hardware.');
+      if (typeof navigator === 'undefined' || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        throw new CameraStreamError('CAMERA_NOT_FOUND', 'MediaDevices API is not supported in this runtime environment.');
       }
-      throw new CameraStreamError('CAMERA_ERROR', err.message || 'Failed to acquire camera stream.');
-    }
 
-    // Race condition check: if a new request was issued while waiting for getUserMedia, discard this stream
-    if (requestId !== this.activeRequestId) {
-      stream.getTracks().forEach((t) => t.stop());
-      throw new CameraStreamError('CAMERA_ERROR', 'Stream request was superseded by a newer camera stream request.');
-    }
+      let stream: MediaStream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia(constraints);
+      } catch (err: any) {
+        if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+          throw new CameraStreamError('CAMERA_PERMISSION_DENIED', 'Camera access was denied by the user or security policy.');
+        } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
+          throw new CameraStreamError('CAMERA_NOT_FOUND', 'Requested camera device was not found on this hardware.');
+        }
+        throw new CameraStreamError('CAMERA_ERROR', err.message || 'Failed to acquire camera stream.');
+      }
 
-    const videoTrack = stream.getVideoTracks()[0];
-    if (!videoTrack) {
-      throw new CameraStreamError('CAMERA_NOT_FOUND', 'MediaStream contains no video tracks.');
-    }
+      // Race condition check: if a newer request was issued while waiting for getUserMedia,
+      // silently discard this obsolete stream without bubbling an error to UI.
+      if (requestId !== this.activeRequestId) {
+        stream.getTracks().forEach((t) => t.stop());
+        if (this.currentStream && this.currentStream.active) {
+          return this.currentStream;
+        }
+        return stream;
+      }
 
-    if (attemptTorch) {
-      await this.applyTorchSafely(videoTrack);
-    }
+      const videoTrack = stream.getVideoTracks()[0];
+      if (!videoTrack) {
+        throw new CameraStreamError('CAMERA_NOT_FOUND', 'MediaStream contains no video tracks.');
+      }
 
-    this.currentStream = stream;
-    this.attachedVideoEl = videoEl;
+      if (attemptTorch) {
+        await this.applyTorchSafely(videoTrack);
+      }
 
-    videoEl.srcObject = stream;
-    videoEl.playsInline = true;
-    videoEl.muted = true;
-    videoEl.autoplay = true;
+      this.currentStream = stream;
+      this.attachedVideoEl = videoEl;
 
+      videoEl.srcObject = stream;
+      videoEl.playsInline = true;
+      videoEl.muted = true;
+      videoEl.autoplay = true;
+
+      try {
+        await videoEl.play();
+      } catch {
+        // Autoplay can be subject to user gesture policies in some browsers
+      }
+
+      return stream;
+    })();
+
+    this.inFlightAcquire = acquirePromise;
     try {
-      await videoEl.play();
-    } catch {
-      // Autoplay can be subject to user gesture policies in some browsers
+      return await acquirePromise;
+    } finally {
+      if (this.inFlightAcquire === acquirePromise) {
+        this.inFlightAcquire = null;
+      }
     }
-
-    return stream;
   }
 
   /**

@@ -1,5 +1,5 @@
 /* ==========================================================================
-   TriageLens Design System: Aerium Product Landing + iOS 26 Liquid Glass Scanner
+   TriageLens iOS 26 Liquid Glass System & Aerium Product Website
    Pure Deep Black (#000000) Canvas • Multi-Layered Optical Glass • Precision Telemetry
    ========================================================================== */
 
@@ -18,17 +18,17 @@
   --glass-fill-modal: rgba(14, 14, 18, 0.92);
 
   --glass-border-subtle: rgba(255, 255, 255, 0.09);
-  --glass-border-card: rgba(255, 255, 255, 0.13);
-  --glass-border-dock: rgba(255, 255, 255, 0.18);
-  --glass-border-rim: rgba(255, 255, 255, 0.28);
+  --glass-border-card: rgba(255, 255, 255, 0.16);
+  --glass-border-dock: rgba(255, 255, 255, 0.22);
+  --glass-border-rim: rgba(255, 255, 255, 0.32);
 
-  --glass-specular-top: inset 0 1px 0.5px rgba(255, 255, 255, 0.32);
-  --glass-specular-card: inset 0 1px 0 rgba(255, 255, 255, 0.24), inset 0 -1px 0 rgba(255, 255, 255, 0.04);
-  --glass-specular-dock: inset 0 1px 0.5px rgba(255, 255, 255, 0.4), inset 0 -1px 1px rgba(255, 255, 255, 0.06);
+  --glass-specular-top: inset 0 1px 1px rgba(255, 255, 255, 0.35);
+  --glass-specular-card: inset 0 1px 1.5px rgba(255, 255, 255, 0.38), inset 0 -1px 1px rgba(255, 255, 255, 0.05);
+  --glass-specular-dock: inset 0 1px 1.5px rgba(255, 255, 255, 0.45), inset 0 -1px 1px rgba(255, 255, 255, 0.06);
 
   --font-stack: "Inter", -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Segoe UI", Roboto, sans-serif;
   --font-serif: "Instrument Serif", Georgia, serif;
-  --font-mono: "SF Mono", Menlo, Consolas, Monaco, monospace;
+  --font-mono: "JetBrains Mono", "SF Mono", Menlo, Consolas, Monaco, monospace;
 
   --accent-green: #34c759;
   --accent-blue: #0a84ff;
@@ -73,54 +73,44 @@ html, body {
 }
 
 /* ==========================================================================
-   VIEW TOGGLE LOGIC: Landing Mode vs Scanner Mode
+   VIEW CONTROLLER: WEBSITE vs NATIVE APP
    ========================================================================== */
-body.mode-landing #landing-view {
-  display: block;
+/* In Native Android APK (or ?app=true / /app): strictly show the Live Scanner */
+html.is-native-app,
+html.is-native-app body {
+  overflow: hidden !important;
+  height: 100dvh !important;
+  max-height: 100dvh !important;
+  position: fixed !important;
+  inset: 0 !important;
 }
-body.mode-landing #scanner-view {
+
+html.is-native-app #landing-view {
   display: none !important;
 }
 
-body.mode-scanner {
-  overflow: hidden !important;
-  height: 100dvh;
-  max-height: 100dvh;
-  position: fixed;
-  inset: 0;
-}
-body.mode-scanner #landing-view {
-  display: none !important;
-}
-body.mode-scanner #scanner-view {
+html.is-native-app #scanner-view {
   display: flex !important;
 }
 
-/* On mobile viewports (< 768px), default to the scanner view unless explicitly toggled */
-@media (max-width: 768px) {
-  body:not(.user-forced-landing) {
-    overflow: hidden !important;
-    height: 100dvh;
-    max-height: 100dvh;
-    position: fixed;
-    inset: 0;
-  }
-  body:not(.user-forced-landing) #landing-view {
-    display: none !important;
-  }
-  body:not(.user-forced-landing) #scanner-view {
-    display: flex !important;
-  }
+/* In Browser Website (tagemeds.vercel.app): strictly show the Aerium Landing Page */
+html:not(.is-native-app) #landing-view {
+  display: block;
 }
 
+html:not(.is-native-app) #scanner-view {
+  display: none !important;
+}
+
+
 /* ==========================================================================
-   PART 1: AERIUM PRODUCT LANDING PAGE VIEW
+   PART 1: AERIUM PRODUCT LANDING PAGE (The Website)
    ========================================================================== */
 .landing-page-container {
   position: relative;
   z-index: 1;
   width: 100%;
-  max-width: 1280px;
+  max-width: 1240px;
   margin: 0 auto;
   padding: 0 24px;
 }
@@ -139,7 +129,7 @@ body.mode-scanner #scanner-view {
   justify-content: space-between;
   height: 52px;
   padding: 0 20px;
-  background: rgba(14, 14, 18, 0.65);
+  background: rgba(14, 14, 18, 0.68);
   backdrop-filter: blur(24px) saturate(160%);
   -webkit-backdrop-filter: blur(24px) saturate(160%);
   border: 1px solid var(--glass-border-subtle);
@@ -238,7 +228,7 @@ body.mode-scanner #scanner-view {
   border: none;
   padding: 8px 16px;
   border-radius: 9999px;
-  cursor: pointer;
+  text-decoration: none;
   box-shadow: 0 0 20px rgba(255, 255, 255, 0.25);
   transition: all 0.2s ease;
 }
@@ -319,7 +309,7 @@ body.mode-scanner #scanner-view {
   padding: 12px 24px;
   border-radius: 9999px;
   border: none;
-  cursor: pointer;
+  text-decoration: none;
   box-shadow: 0 4px 24px rgba(255, 255, 255, 0.3);
   transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
 }
@@ -377,11 +367,11 @@ body.mode-scanner #scanner-view {
 .avatar-dot.blue { background: var(--accent-blue); }
 .avatar-dot.white { background: #ffffff; }
 
-/* 1.3 Hero Device Mockup Visual Showcase */
+/* 1.3 Hero Device Mockup Visual Showcase (Clean UI Render) */
 .aerium-hero-showcase {
   position: relative;
   width: 100%;
-  max-width: 980px;
+  max-width: 960px;
   margin: 0 auto;
   perspective: 1200px;
 }
@@ -391,25 +381,24 @@ body.mode-scanner #scanner-view {
   display: flex;
   justify-content: center;
   align-items: flex-end;
-  min-height: 480px;
+  min-height: 520px;
   padding: 40px 0 20px 0;
 }
 
 /* Smartphone Mockup Frame Styling */
 .device-mockup {
   position: relative;
-  width: 290px;
-  height: 580px;
+  width: 295px;
+  height: 590px;
   background: #000000;
   border-radius: 46px;
   box-shadow: 
-    0 24px 60px rgba(0, 0, 0, 0.8),
-    0 0 0 1px rgba(255, 255, 255, 0.12),
+    0 28px 70px rgba(0, 0, 0, 0.85),
+    0 0 0 1px rgba(255, 255, 255, 0.14),
     inset 0 0 0 2px rgba(255, 255, 255, 0.18),
     inset 0 2px 2px rgba(255, 255, 255, 0.35);
   padding: 10px;
   z-index: 2;
-  transition: transform 0.4s ease;
 }
 
 .phone-screen {
@@ -439,13 +428,10 @@ body.mode-scanner #scanner-view {
   border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
-/* Primary Centered Phone */
 .primary-phone {
   z-index: 3;
-  transform: translateY(0);
 }
 
-/* Secondary Angled Phone (Aerium Perspective Effect) */
 .secondary-phone {
   position: absolute;
   right: 18%;
@@ -462,7 +448,6 @@ body.mode-scanner #scanner-view {
   }
 }
 
-/* Mockup Internal UI Elements */
 .mockup-header {
   display: flex;
   justify-content: space-between;
@@ -472,18 +457,27 @@ body.mode-scanner #scanner-view {
 }
 
 .mockup-brand {
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: -0.01em;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  color: var(--text-pure);
+}
+
+.mockup-sub {
+  font-family: var(--font-mono);
+  font-size: 8.5px;
+  color: var(--text-tertiary);
 }
 
 .mockup-pill {
-  font-size: 9.5px;
-  font-weight: 500;
-  color: var(--accent-green);
-  background: rgba(52, 199, 89, 0.12);
-  border: 1px solid rgba(52, 199, 89, 0.28);
-  padding: 2px 7px;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 600;
+  color: var(--text-pure);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  padding: 2px 6px;
   border-radius: 9999px;
 }
 .mockup-pill.blue {
@@ -499,7 +493,9 @@ body.mode-scanner #scanner-view {
   border-radius: 9999px;
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid var(--glass-border-card);
-  box-shadow: var(--glass-specular-top);
+  box-shadow: 
+    0 0 16px rgba(255, 255, 255, 0.12),
+    inset 0 1px 1px rgba(255, 255, 255, 0.35);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -516,7 +512,7 @@ body.mode-scanner #scanner-view {
   position: absolute;
   width: 10px;
   height: 10px;
-  border: 1.5px solid rgba(255, 255, 255, 0.5);
+  border: 1.5px solid rgba(255, 255, 255, 0.6);
 }
 .mockup-corner.tl { top: 0; left: 0; border-right: none; border-bottom: none; border-top-left-radius: 4px; }
 .mockup-corner.tr { top: 0; right: 0; border-left: none; border-bottom: none; border-top-right-radius: 4px; }
@@ -526,35 +522,38 @@ body.mode-scanner #scanner-view {
 .mockup-status-tag {
   position: absolute;
   bottom: 8px;
-  font-size: 9px;
-  font-weight: 500;
-  color: var(--text-secondary);
-  background: rgba(0, 0, 0, 0.65);
+  font-family: var(--font-mono);
+  font-size: 8.5px;
+  font-weight: 600;
+  color: var(--text-pure);
+  background: rgba(0, 0, 0, 0.7);
   backdrop-filter: blur(8px);
   padding: 2px 8px;
   border-radius: 9999px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.15);
 }
 
 .mockup-waveform-box {
   background: rgba(255, 255, 255, 0.035);
   border: 1px solid var(--glass-border-subtle);
-  border-radius: 12px;
+  border-radius: 14px;
   padding: 6px 8px;
 }
 
 .mockup-waveform-title {
-  font-size: 8.5px;
+  font-family: var(--font-mono);
+  font-size: 8px;
+  letter-spacing: 0.04em;
   color: var(--text-tertiary);
   margin-bottom: 4px;
 }
 
 .mockup-grid-canvas {
-  height: 40px;
+  height: 42px;
   background-image: 
-    linear-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
-  background-size: 8px 8px;
+    linear-gradient(rgba(255, 255, 255, 0.06) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.06) 1px, transparent 1px);
+  background-size: 10px 10px;
   display: flex;
   align-items: center;
 }
@@ -573,55 +572,49 @@ body.mode-scanner #scanner-view {
 .mockup-card {
   background: var(--glass-fill-card);
   border: 1px solid var(--glass-border-card);
-  border-radius: 10px;
+  border-radius: 12px;
   padding: 6px 8px;
   display: flex;
   flex-direction: column;
+  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.25);
 }
 
 .mc-label {
-  font-size: 8px;
+  font-family: var(--font-mono);
+  font-size: 7.5px;
   color: var(--text-tertiary);
+  letter-spacing: 0.04em;
 }
 
 .mc-val {
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 700;
   color: var(--text-pure);
+  margin-top: 2px;
 }
-.mc-val small { font-size: 8px; color: var(--text-tertiary); font-weight: 400; }
+.mc-val small { font-size: 8px; color: var(--text-tertiary); font-weight: 500; }
 .mc-val.green { color: var(--accent-green); }
 
-.mockup-shutter-btn {
+.mockup-dock-bar {
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 6px;
+  justify-content: space-around;
   height: 38px;
   width: 100%;
-  background: rgba(255, 255, 255, 0.09);
-  backdrop-filter: blur(12px);
+  background: rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(16px);
   border: 1px solid var(--glass-border-dock);
   border-radius: 9999px;
-  color: var(--text-pure);
-  font-size: 11px;
-  font-weight: 600;
-  cursor: pointer;
-  box-shadow: var(--glass-specular-top);
-  transition: all 0.2s ease;
+  color: var(--text-secondary);
 }
 
-.mockup-shutter-btn:hover {
-  background: rgba(255, 255, 255, 0.16);
-  border-color: rgba(255, 255, 255, 0.3);
-}
-
-.shutter-core {
-  width: 8px;
-  height: 8px;
+.mdb-icon { font-size: 14px; }
+.mdb-shutter {
+  width: 18px;
+  height: 18px;
   border-radius: 50%;
   background: #ffffff;
-  box-shadow: 0 0 8px rgba(255, 255, 255, 0.8);
+  box-shadow: 0 0 12px rgba(255, 255, 255, 0.8);
 }
 
 /* Secondary phone drawer text */
@@ -662,78 +655,6 @@ body.mode-scanner #scanner-view {
   margin-bottom: 4px;
 }
 
-/* Floating iOS 26 Liquid Glass Feature Pills (Aerium Hero Effect) */
-.floating-glass-card {
-  position: absolute;
-  z-index: 5;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 8px 14px;
-  background: rgba(18, 18, 22, 0.65);
-  backdrop-filter: blur(24px) saturate(160%);
-  -webkit-backdrop-filter: blur(24px) saturate(160%);
-  border: 1px solid var(--glass-border-card);
-  border-radius: 16px;
-  box-shadow: 
-    0 16px 36px rgba(0, 0, 0, 0.5),
-    var(--glass-specular-card);
-  animation: float-pill 5s ease-in-out infinite;
-}
-
-.card-pulse-float {
-  top: 15%;
-  left: 20%;
-  animation-delay: 0s;
-}
-
-.card-symmetry-float {
-  top: 48%;
-  left: 15%;
-  animation-delay: 1.5s;
-}
-
-.card-sqi-float {
-  top: 25%;
-  right: 18%;
-  animation-delay: 3s;
-}
-
-@media (max-width: 900px) {
-  .floating-glass-card {
-    display: none;
-  }
-}
-
-.fg-icon {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.fg-content {
-  display: flex;
-  flex-direction: column;
-}
-
-.fg-label {
-  font-size: 9.5px;
-  color: var(--text-tertiary);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-}
-
-.fg-val {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--text-pure);
-}
-
-@keyframes float-pill {
-  0%, 100% { transform: translateY(0px); }
-  50% { transform: translateY(-8px); }
-}
-
 /* 1.4 Stats Section */
 .aerium-stats-section {
   padding: 80px 0;
@@ -743,11 +664,6 @@ body.mode-scanner #scanner-view {
 
 .aerium-section-header {
   margin-bottom: 48px;
-}
-.aerium-section-header.center {
-  text-align: center;
-  max-width: 720px;
-  margin: 0 auto 48px auto;
 }
 
 .aerium-section-title {
@@ -801,7 +717,7 @@ body.mode-scanner #scanner-view {
   color: var(--text-secondary);
 }
 
-/* 1.5 Feature Section: Optical Extraction & Biometric Radar Scanner */
+/* 1.5 Feature Section: Optical Extraction & Picture of App UI (Replaces Radar) */
 .aerium-feature-section {
   padding: 100px 0;
 }
@@ -821,6 +737,7 @@ body.mode-scanner #scanner-view {
 }
 
 .feature-badge {
+  font-family: var(--font-mono);
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.12em;
@@ -852,126 +769,123 @@ body.mode-scanner #scanner-view {
   color: var(--text-secondary);
 }
 
-/* Biometric Radar Scanner Visualization (Aerium Right-Hand Radar) */
+/* High-Fidelity Picture/Mockup of App UI (Replaces Radar) */
 .feature-visual-col {
   display: flex;
   justify-content: center;
   align-items: center;
 }
 
-.radar-scanner-container {
-  position: relative;
-  width: 360px;
-  height: 360px;
-  border-radius: 50%;
-  background: radial-gradient(circle, rgba(255, 255, 255, 0.02) 0%, transparent 70%);
-}
-
-.radar-circle {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  border-radius: 50%;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-}
-.ring-outer { width: 340px; height: 340px; }
-.ring-mid { width: 230px; height: 230px; border-style: dashed; }
-.ring-inner { width: 120px; height: 120px; }
-
-.radar-crosshair-h {
-  position: absolute;
-  top: 50%;
-  left: 0;
-  right: 0;
-  height: 1px;
-  background: rgba(255, 255, 255, 0.07);
-}
-
-.radar-crosshair-v {
-  position: absolute;
-  left: 50%;
-  top: 0;
-  bottom: 0;
-  width: 1px;
-  background: rgba(255, 255, 255, 0.07);
-}
-
-.radar-sweep-arm {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 170px;
-  height: 170px;
-  transform-origin: 0% 0%;
-  background: conic-gradient(from 0deg, rgba(255, 255, 255, 0.18) 0deg, transparent 60deg);
-  border-radius: 0 100% 0 0;
-  animation: radar-sweep 5s linear infinite;
-  pointer-events: none;
-}
-
-@keyframes radar-sweep {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
-}
-
-.radar-node {
-  position: absolute;
+.app-ui-showcase-panel {
+  width: 100%;
+  max-width: 380px;
+  background: #000000;
+  border-radius: 28px;
+  border: 1px solid var(--glass-border-card);
+  box-shadow: 
+    0 24px 60px rgba(0, 0, 0, 0.8),
+    0 0 30px rgba(255, 255, 255, 0.08),
+    var(--glass-specular-top);
+  padding: 16px;
   display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.aui-top {
+  display: flex;
+  justify-content: space-between;
   align-items: center;
-  gap: 6px;
-  transform: translate(-50%, -50%);
-  z-index: 2;
-}
-
-.node-dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: #ffffff;
-  box-shadow: 0 0 10px rgba(255, 255, 255, 0.8);
-}
-.node-dot.green { background: var(--accent-green); box-shadow: 0 0 10px rgba(52, 199, 89, 0.8); }
-.node-dot.blue { background: var(--accent-blue); box-shadow: 0 0 10px rgba(10, 132, 255, 0.8); }
-
-.node-label {
+  font-family: var(--font-mono);
   font-size: 10px;
-  font-weight: 500;
-  color: var(--text-secondary);
-  background: rgba(10, 10, 14, 0.8);
-  padding: 2px 6px;
-  border-radius: 4px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  white-space: nowrap;
 }
 
-.radar-center-core {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.2);
+.aui-bracket { font-weight: 700; color: #ffffff; }
+.aui-tag { color: var(--accent-green); background: rgba(52, 199, 89, 0.12); padding: 2px 6px; border-radius: 4px; border: 1px solid rgba(52, 199, 89, 0.3); }
+
+.aui-pill {
+  position: relative;
+  width: 100%;
+  height: 90px;
+  border-radius: 9999px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--glass-border-rim);
+  box-shadow: 0 0 20px rgba(255, 255, 255, 0.15), inset 0 1px 1px rgba(255, 255, 255, 0.4);
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 0 16px rgba(255, 255, 255, 0.2);
 }
 
-/* 1.6 Dual Showcase Section */
-.aerium-dual-showcase-section {
-  padding: 80px 0;
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
+.aui-reticle {
+  width: 44px;
+  height: 52px;
+  border: 1.5px dashed rgba(255, 255, 255, 0.5);
+  border-radius: 8px;
 }
 
-.section-cta-wrap {
-  margin-top: 28px;
+.aui-pill-tag {
+  position: absolute;
+  bottom: 8px;
+  font-family: var(--font-mono);
+  font-size: 8.5px;
+  color: #ffffff;
+  background: rgba(0, 0, 0, 0.7);
+  padding: 2px 8px;
+  border-radius: 9999px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
 }
 
-/* 1.7 Architecture Section */
+.aui-wave {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--glass-border-subtle);
+  border-radius: 12px;
+  padding: 8px;
+}
+
+.aui-wave-lbl {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 8px;
+  color: var(--text-tertiary);
+  margin-bottom: 4px;
+}
+
+.aui-wave-svg {
+  width: 100%;
+  height: 38px;
+}
+
+.aui-cards {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+}
+
+.aui-card {
+  background: var(--glass-fill-card);
+  border: 1px solid var(--glass-border-card);
+  border-radius: 12px;
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  box-shadow: var(--glass-specular-card);
+}
+
+.aui-card span {
+  font-family: var(--font-mono);
+  font-size: 7.5px;
+  color: var(--text-tertiary);
+}
+
+.aui-card strong {
+  font-size: 13px;
+  color: #ffffff;
+  margin-top: 2px;
+}
+
+.aui-card strong.green { color: var(--accent-green); }
+
+/* 1.6 Architecture Section */
 .aerium-tech-section {
   padding: 80px 0;
 }
@@ -1021,7 +935,7 @@ body.mode-scanner #scanner-view {
   color: var(--text-secondary);
 }
 
-/* 1.8 Footer */
+/* 1.7 Footer */
 .aerium-footer {
   position: relative;
   padding: 80px 0 120px 0;
@@ -1099,7 +1013,6 @@ body.mode-scanner #scanner-view {
   color: var(--text-pure);
 }
 
-/* Giant Aesthetic Watermark at Footer Baseline (Aerium Design) */
 .footer-giant-watermark {
   position: absolute;
   bottom: -40px;
@@ -1117,7 +1030,8 @@ body.mode-scanner #scanner-view {
 
 
 /* ==========================================================================
-   PART 2: IOS 26 LIQUID GLASS SCANNER VIEW (Exact Match to Reference Image 2)
+   PART 2: TRUE IOS 26 LIQUID GLASS SCANNER APP (The Native Mobile App)
+   Exact Recreation of Reference Screenshot: Pure OLED #000000 • 4-Card 2x2 Grid
    ========================================================================== */
 .app-viewport {
   position: relative;
@@ -1133,7 +1047,21 @@ body.mode-scanner #scanner-view {
   padding: 8px 14px env(safe-area-inset-bottom, 10px) 14px;
   gap: 8px;
   overflow: hidden;
+  background-color: #000000;
 }
+
+/* Screen Edge Technical Corner Brackets matching Reference Image */
+.screen-bracket {
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  border-left: 1.5px solid rgba(255, 255, 255, 0.4);
+  pointer-events: none;
+  z-index: 15;
+}
+.screen-bracket.tl { top: 12px; left: 4px; border-top: 1.5px solid rgba(255, 255, 255, 0.4); }
+.screen-bracket.ml { top: 46%; left: 4px; }
+.screen-bracket.bl { bottom: 82px; left: 4px; border-bottom: 1.5px solid rgba(255, 255, 255, 0.4); }
 
 /* 2.1 Top Status Bar */
 .top-status-bar {
@@ -1145,51 +1073,44 @@ body.mode-scanner #scanner-view {
   flex-shrink: 0;
 }
 
-.btn-brand-back {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  background: none;
-  border: none;
-  color: var(--text-pure);
-  cursor: pointer;
-  padding: 4px 6px;
-  border-radius: 6px;
-}
-
-.btn-brand-back:hover {
-  background: rgba(255, 255, 255, 0.06);
-}
-
-.brand-title {
-  font-size: 13.5px;
-  font-weight: 600;
-  letter-spacing: -0.01em;
+.brand-bracket-title {
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
   color: var(--text-pure);
 }
 
 .status-title {
-  font-size: 12px;
+  font-family: var(--font-mono);
+  font-size: 11px;
   font-weight: 500;
   color: var(--text-tertiary);
-  letter-spacing: 0.02em;
-  text-transform: capitalize;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
 }
 
 .quality-pill {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 4px 10px;
+  gap: 5px;
+  padding: 3px 8px;
   border-radius: 9999px;
-  background: var(--glass-fill-subtle);
-  border: 1px solid var(--glass-border-subtle);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
   box-shadow: var(--glass-specular-top);
-  font-size: 11px;
-  font-weight: 500;
-  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--text-pure);
+}
+
+.bracket-dot-box {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
 }
 
 .status-dot {
@@ -1197,13 +1118,16 @@ body.mode-scanner #scanner-view {
   height: 6px;
   border-radius: 50%;
   background-color: var(--accent-green);
-  box-shadow: 0 0 8px rgba(52, 199, 89, 0.8);
+  box-shadow: 0 0 10px rgba(52, 199, 89, 0.9);
   animation: pulse-dot 2s ease-in-out infinite;
 }
 
+.status-dot.warning { background-color: var(--accent-amber); box-shadow: 0 0 10px rgba(255, 159, 10, 0.9); }
+.status-dot.critical { background-color: var(--accent-red); box-shadow: 0 0 10px rgba(255, 69, 58, 0.9); }
+
 @keyframes pulse-dot {
   0%, 100% { opacity: 1; transform: scale(1); }
-  50% { opacity: 0.4; transform: scale(0.85); }
+  50% { opacity: 0.45; transform: scale(0.85); }
 }
 
 /* 2.2 Camera / Face Guide Pill Frame */
@@ -1219,25 +1143,32 @@ body.mode-scanner #scanner-view {
   position: relative;
   width: 100%;
   aspect-ratio: 2.2 / 1;
-  max-height: 175px;
+  max-height: 180px;
   border-radius: 9999px;
-  background-color: #060608;
+  background-color: #050507;
   overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.22);
   box-shadow: 
-    0 16px 40px rgba(0, 0, 0, 0.6),
-    0 0 0 1px rgba(255, 255, 255, 0.12),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.15),
-    var(--glass-specular-top);
-  transition: box-shadow 0.3s ease;
+    0 16px 40px rgba(0, 0, 0, 0.7),
+    0 0 24px rgba(255, 255, 255, 0.14),
+    inset 0 1px 1px rgba(255, 255, 255, 0.45),
+    inset 0 -1px 1px rgba(255, 255, 255, 0.08);
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .camera-pill-frame.scanning {
   box-shadow: 
-    0 16px 40px rgba(0, 0, 0, 0.6),
-    0 0 0 1px rgba(255, 255, 255, 0.35),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.25),
-    0 0 24px rgba(255, 255, 255, 0.18),
-    var(--glass-specular-top);
+    0 16px 40px rgba(0, 0, 0, 0.7),
+    0 0 32px rgba(255, 255, 255, 0.3),
+    inset 0 1px 2px rgba(255, 255, 255, 0.6),
+    inset 0 -1px 1px rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.35);
+  animation: camera-pulse 2.4s ease-in-out infinite;
+}
+
+@keyframes camera-pulse {
+  0%, 100% { box-shadow: 0 16px 40px rgba(0, 0, 0, 0.7), 0 0 28px rgba(255, 255, 255, 0.22); }
+  50% { box-shadow: 0 16px 40px rgba(0, 0, 0, 0.7), 0 0 40px rgba(255, 255, 255, 0.38); }
 }
 
 #camera-preview {
@@ -1269,16 +1200,16 @@ body.mode-scanner #scanner-view {
 /* Face Alignment Reticle */
 .face-reticle {
   position: relative;
-  width: 76px;
-  height: 86px;
+  width: 80px;
+  height: 92px;
   margin-top: 4px;
 }
 
 .reticle-corner {
   position: absolute;
-  width: 12px;
-  height: 12px;
-  border: 1.8px solid rgba(255, 255, 255, 0.7);
+  width: 13px;
+  height: 13px;
+  border: 1.8px solid rgba(255, 255, 255, 0.75);
 }
 
 .reticle-corner.tl { top: 0; left: 0; border-right: none; border-bottom: none; border-top-left-radius: 5px; }
@@ -1295,7 +1226,7 @@ body.mode-scanner #scanner-view {
   color: var(--text-pure);
   font-size: 11px;
   font-weight: 500;
-  margin-top: 20px;
+  margin-top: 22px;
 }
 
 /* Bottom Status Pill inside Camera Frame */
@@ -1309,10 +1240,12 @@ body.mode-scanner #scanner-view {
   -webkit-backdrop-filter: blur(20px) saturate(160%);
   border: 1px solid var(--glass-border-subtle);
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4), var(--glass-specular-top);
-  font-size: 10.5px;
-  font-weight: 500;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
   color: var(--text-pure);
-  letter-spacing: 0.02em;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
 }
 
 /* Scan Progress Edge Indicator */
@@ -1328,7 +1261,7 @@ body.mode-scanner #scanner-view {
   z-index: 5;
 }
 
-/* 2.3 Live Pulse Waveform Panel */
+/* 2.3 Live Pulse Waveform Panel matching Reference Image */
 .waveform-section {
   display: flex;
   flex-direction: column;
@@ -1338,28 +1271,43 @@ body.mode-scanner #scanner-view {
 }
 
 .waveform-header {
-  font-size: 10.5px;
-  font-weight: 500;
-  letter-spacing: 0.04em;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
   color: var(--text-tertiary);
   text-transform: uppercase;
-  padding-left: 4px;
+  padding-left: 2px;
 }
 
 .waveform-grid-wrapper {
   position: relative;
   width: 100%;
-  height: 94px;
-  border-radius: 14px;
+  height: 98px;
+  border-radius: 16px;
   background-color: rgba(255, 255, 255, 0.02);
   border: 1px solid var(--glass-border-subtle);
   box-shadow: var(--glass-specular-card);
   overflow: hidden;
   background-image: 
-    linear-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+    linear-gradient(rgba(255, 255, 255, 0.06) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.06) 1px, transparent 1px);
   background-size: 14px 14px;
   background-position: -1px -1px;
+}
+
+.waveform-side-tag {
+  position: absolute;
+  left: -18px;
+  top: 50%;
+  transform: translateY(-50%) rotate(-90deg);
+  font-family: var(--font-mono);
+  font-size: 8px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  color: rgba(255, 255, 255, 0.35);
+  pointer-events: none;
+  z-index: 2;
 }
 
 #waveform-canvas {
@@ -1369,7 +1317,7 @@ body.mode-scanner #scanner-view {
   height: 100%;
 }
 
-/* 2.4 6-Card Metric Grid (2 Rows x 3 Columns) */
+/* 2.4 EXACT 4-CARD 2x2 METRIC GRID */
 .metric-grid-section {
   width: 100%;
   flex-shrink: 0;
@@ -1377,40 +1325,47 @@ body.mode-scanner #scanner-view {
 
 .metric-cards-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(2, 1fr);
   grid-template-rows: repeat(2, 1fr);
-  gap: 8px;
+  gap: 10px;
   width: 100%;
 }
 
 .glass-card {
   position: relative;
-  height: 76px;
-  border-radius: 16px;
+  height: 84px;
+  border-radius: 20px;
   background: var(--glass-fill-card);
-  backdrop-filter: blur(24px) saturate(160%);
-  -webkit-backdrop-filter: blur(24px) saturate(160%);
+  backdrop-filter: blur(28px) saturate(180%);
+  -webkit-backdrop-filter: blur(28px) saturate(180%);
   border: 1px solid var(--glass-border-card);
   box-shadow: 
-    0 8px 24px rgba(0, 0, 0, 0.35),
+    0 10px 28px rgba(0, 0, 0, 0.45),
     var(--glass-specular-card);
-  padding: 8px 10px;
+  padding: 10px 12px;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.2s ease;
+}
+
+.glass-card:active {
+  transform: scale(0.97);
+  border-color: var(--glass-border-rim);
 }
 
 .card-top-row {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  height: 16px;
+  height: 18px;
 }
 
 .card-label {
-  font-size: 10px;
-  font-weight: 500;
-  letter-spacing: 0.04em;
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
   text-transform: uppercase;
   color: var(--text-tertiary);
 }
@@ -1421,46 +1376,48 @@ body.mode-scanner #scanner-view {
 
 .card-icon.heart-pulse {
   color: #ffffff;
-  animation: heart-beat 1.2s infinite ease-in-out;
+  animation: heart-beat 1.1s infinite cubic-bezier(0.215, 0.61, 0.355, 1);
 }
 
 @keyframes heart-beat {
   0%, 100% { transform: scale(1); }
-  25% { transform: scale(1.18); }
-  40% { transform: scale(1); }
-  60% { transform: scale(1.12); }
+  25% { transform: scale(1.22); }
+  35% { transform: scale(1.05); }
+  45% { transform: scale(1.15); }
+  60% { transform: scale(1); }
 }
 
 .card-value-row {
   display: flex;
   align-items: baseline;
-  gap: 4px;
+  gap: 5px;
   line-height: 1;
 }
 
 .card-big-num {
-  font-size: 21px;
-  font-weight: 600;
+  font-size: 24px;
+  font-weight: 700;
   letter-spacing: -0.02em;
   color: var(--text-pure);
 }
 
 .card-unit {
+  font-family: var(--font-mono);
   font-size: 10px;
-  font-weight: 500;
+  font-weight: 600;
   color: var(--text-tertiary);
-  letter-spacing: 0.02em;
+  letter-spacing: 0.04em;
 }
 
 .card-status-text {
-  font-size: 14.5px;
-  font-weight: 600;
+  font-size: 18px;
+  font-weight: 700;
   letter-spacing: -0.01em;
   color: var(--text-pure);
 }
 
 .card-sub-delta {
-  font-size: 9.5px;
+  font-size: 10px;
   font-family: var(--font-mono);
   font-weight: 500;
   color: var(--text-tertiary);
@@ -1482,16 +1439,16 @@ body.mode-scanner #scanner-view {
   align-items: center;
   justify-content: space-between;
   width: 100%;
-  max-width: 390px;
+  max-width: 400px;
   height: 56px;
   padding: 0 10px;
   border-radius: 9999px;
   background: var(--glass-fill-dock);
-  backdrop-filter: blur(28px) saturate(180%);
-  -webkit-backdrop-filter: blur(28px) saturate(180%);
+  backdrop-filter: blur(32px) saturate(200%);
+  -webkit-backdrop-filter: blur(32px) saturate(200%);
   border: 1px solid var(--glass-border-dock);
   box-shadow: 
-    0 16px 36px rgba(0, 0, 0, 0.6),
+    0 16px 40px rgba(0, 0, 0, 0.7),
     var(--glass-specular-dock);
 }
 
@@ -1511,7 +1468,7 @@ body.mode-scanner #scanner-view {
 
 .dock-btn:hover {
   color: var(--text-pure);
-  background: rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.09);
 }
 
 .dock-btn:active {
@@ -1519,7 +1476,7 @@ body.mode-scanner #scanner-view {
 }
 
 .dock-btn:disabled {
-  opacity: 0.3;
+  opacity: 0.25;
   cursor: not-allowed;
   pointer-events: none;
 }
@@ -1530,12 +1487,12 @@ body.mode-scanner #scanner-view {
   height: 48px;
   color: #000000;
   background: #ffffff;
-  box-shadow: 0 0 18px rgba(255, 255, 255, 0.45);
+  box-shadow: 0 0 20px rgba(255, 255, 255, 0.55);
 }
 
 .dock-btn.scan-trigger:hover {
   transform: scale(1.06);
-  box-shadow: 0 0 24px rgba(255, 255, 255, 0.65);
+  box-shadow: 0 0 28px rgba(255, 255, 255, 0.75);
 }
 
 .dock-btn.scan-trigger:active {
@@ -1554,11 +1511,11 @@ body.mode-scanner #scanner-view {
   backdrop-filter: blur(32px) saturate(180%);
   -webkit-backdrop-filter: blur(32px) saturate(180%);
   border-top: 1px solid var(--glass-border-dock);
-  border-radius: 24px 24px 0 0;
-  box-shadow: 0 -16px 48px rgba(0, 0, 0, 0.7), var(--glass-specular-top);
+  border-radius: 26px 26px 0 0;
+  box-shadow: 0 -16px 48px rgba(0, 0, 0, 0.8), var(--glass-specular-top);
   padding: 12px 18px 24px 18px;
   z-index: 50;
-  animation: slide-up-drawer 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  animation: slide-up-drawer 0.32s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 @keyframes slide-up-drawer {
@@ -1570,7 +1527,7 @@ body.mode-scanner #scanner-view {
   width: 36px;
   height: 4px;
   border-radius: 2px;
-  background: rgba(255, 255, 255, 0.25);
+  background: rgba(255, 255, 255, 0.28);
   margin: 0 auto 12px auto;
 }
 
@@ -1622,7 +1579,7 @@ body.mode-scanner #scanner-view {
   background: none;
   border: none;
   color: var(--text-tertiary);
-  font-size: 18px;
+  font-size: 20px;
   cursor: pointer;
 }
 
@@ -1655,13 +1612,13 @@ body.mode-scanner #scanner-view {
   color: var(--text-tertiary);
 }
 
-/* 2.7 Modals: APK & History */
+/* 2.7 Modals: Real In-App Settings & History */
 .modal-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.75);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
+  background: rgba(0, 0, 0, 0.78);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
   display: none;
   align-items: center;
   justify-content: center;
@@ -1676,7 +1633,7 @@ body.mode-scanner #scanner-view {
 
 .glass-modal {
   width: 100%;
-  max-width: 400px;
+  max-width: 380px;
   background: var(--glass-fill-modal);
   backdrop-filter: blur(32px) saturate(180%);
   -webkit-backdrop-filter: blur(32px) saturate(180%);
@@ -1694,65 +1651,81 @@ body.mode-scanner #scanner-view {
 }
 
 .modal-title {
-  font-size: 14px;
+  font-size: 14.5px;
   font-weight: 600;
 }
 
-.apk-download-hero {
-  text-align: center;
-  padding: 10px 0 16px 0;
+.settings-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
 }
 
-.apk-icon {
-  font-size: 32px;
-  margin-bottom: 8px;
-}
-
-.apk-title {
-  font-size: 13.5px;
-  font-weight: 600;
-  margin-bottom: 6px;
-}
-
-.apk-desc {
-  font-size: 11.5px;
-  line-height: 1.5;
-  color: var(--text-secondary);
-  margin-bottom: 18px;
-}
-
-.btn-liquid-primary {
-  display: inline-flex;
+.setting-row {
+  display: flex;
+  justify-content: space-between;
   align-items: center;
-  justify-content: center;
-  gap: 8px;
-  width: 100%;
-  height: 44px;
-  background: #ffffff;
-  color: #000000;
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.setting-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-width: 250px;
+}
+
+.setting-name {
   font-size: 13px;
   font-weight: 600;
-  border-radius: 9999px;
-  text-decoration: none;
-  box-shadow: 0 4px 18px rgba(255, 255, 255, 0.35);
-  margin-bottom: 12px;
+  color: var(--text-pure);
 }
 
-.mirror-link-row a {
-  font-size: 11px;
+.setting-sub {
+  font-size: 10.5px;
+  line-height: 1.4;
   color: var(--text-tertiary);
-  text-decoration: underline;
 }
 
-.pwa-callout {
-  margin-top: 14px;
+.setting-toggle-btn {
+  padding: 6px 12px;
+  border-radius: 9999px;
+  font-size: 11px;
+  font-weight: 600;
+  border: 1px solid var(--glass-border-card);
+  background: var(--glass-fill-subtle);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.setting-toggle-btn.active {
+  background: #ffffff;
+  color: #000000;
+  border-color: #ffffff;
+}
+
+.setting-btn-danger {
+  padding: 6px 12px;
+  border-radius: 9999px;
+  font-size: 11px;
+  font-weight: 600;
+  border: 1px solid rgba(255, 69, 58, 0.3);
+  background: rgba(255, 69, 58, 0.12);
+  color: var(--accent-red);
+  cursor: pointer;
+}
+
+.setting-info-box {
+  margin-top: 8px;
   padding: 10px;
   border-radius: 12px;
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid var(--glass-border-subtle);
-  font-size: 11px;
+  font-size: 10.5px;
   line-height: 1.45;
-  color: var(--text-secondary);
+  color: var(--text-tertiary);
 }
 
 .history-list {
