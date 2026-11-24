@@ -2,208 +2,685 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>TriageLens | Client-Side Vital Sign Telemetry</title>
-  <meta name="description" content="Offline-first, client-side, zero-hardware mobile vital sign telemetry engine." />
-  <meta name="theme-color" content="#0a0b0e" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <title>TriageLens | Intelligence Beneath The Surface</title>
+  <meta name="description" content="Offline-first, client-side, zero-hardware mobile vital sign telemetry engine. Experience intelligence beneath the surface." />
+  <meta name="theme-color" content="#000000" />
   <link rel="manifest" href="/manifest.webmanifest" />
+  
+  <!-- Aerium & iOS 26 Typography: Inter + Instrument Serif -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@1&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  
   <link rel="stylesheet" href="/src/ui/style.css" />
 </head>
-<body>
-  <header>
-    <div class="logo-area">
-      <div class="logo-icon">TL</div>
-      <div>
-        <div class="logo-title">TriageLens</div>
-        <div class="logo-subtitle">Offline rPPG Telemetry Engine</div>
+<body class="mode-landing">
+  <!-- Ambient Optical Background Glow -->
+  <div class="ambient-glow"></div>
+
+  <!-- =========================================================================
+       1. AERIUM PRODUCT LANDING PAGE VIEW (Desktop & Mobile Overview)
+       ========================================================================= -->
+  <div id="landing-view" class="landing-page-container">
+    <!-- Top Sticky Glass Navigation Bar -->
+    <header class="aerium-nav-bar">
+      <div class="aerium-nav-inner">
+        <a href="#hero" class="aerium-nav-logo">
+          <span class="logo-pulse-dot"></span>
+          <span class="logo-text">TRIAGELENS</span>
+        </a>
+        <nav class="aerium-nav-links">
+          <a href="#hero">Product</a>
+          <a href="#stats">Validation</a>
+          <a href="#features">Solutions</a>
+          <a href="#technology">Architecture</a>
+        </nav>
+        <div class="aerium-nav-actions">
+          <a href="/triagelens-release.apk" download="triagelens-release.apk" class="aerium-btn-ghost" title="Download Android APK (4.1 MB)">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+              <polyline points="7 10 12 15 17 10"/>
+              <line x1="12" y1="15" x2="12" y2="3"/>
+            </svg>
+            Download APK
+          </a>
+          <button id="nav-btn-launch-scanner" class="aerium-btn-glow">
+            Launch Scanner
+            <span class="btn-glow-arrow">→</span>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <!-- Hero Section -->
+    <section id="hero" class="aerium-hero-section">
+      <div class="aerium-hero-header">
+        <h1 class="aerium-hero-title">
+          Intelligence Beneath<br />
+          <span class="serif-accent">The Surface</span>
+        </h1>
+        <p class="aerium-hero-subtitle">
+          Experience a new standard of vital telemetry where technology works seamlessly in the background.
+          Zero-hardware optical rPPG chrominance decomposition, FAST stroke asymmetry, and real-time triage running 100% on device silicon.
+        </p>
+
+        <!-- Action / CTA Pill Row -->
+        <div class="aerium-cta-row">
+          <div class="aerium-cta-box">
+            <button id="hero-btn-launch-scanner" class="aerium-cta-primary">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10"/>
+                <polygon points="10 8 16 12 10 16 10 8" fill="currentColor"/>
+              </svg>
+              Launch Live Scanner
+            </button>
+            <a href="/triagelens-release.apk" download="triagelens-release.apk" class="aerium-cta-secondary" title="Direct Android APK Download">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                <polyline points="7 10 12 15 17 10"/>
+                <line x1="12" y1="15" x2="12" y2="3"/>
+              </svg>
+              Download APK (4.1 MB)
+            </a>
+          </div>
+
+          <!-- Trust / Validation Badge -->
+          <div class="aerium-trust-badge">
+            <div class="trust-avatar-stack">
+              <span class="avatar-dot green"></span>
+              <span class="avatar-dot blue"></span>
+              <span class="avatar-dot white"></span>
+            </div>
+            <span class="trust-text">Clinically grounded DSP · 100% Client-Side Privacy</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Hero Device Mockup Visual Showcase -->
+      <div class="aerium-hero-showcase">
+        <div class="hero-mockup-wrapper">
+          <!-- Central Smartphone Mockup (Interactive Scanner Frame) -->
+          <div class="device-mockup primary-phone">
+            <div class="phone-rim"></div>
+            <div class="phone-screen">
+              <div class="phone-dynamic-island"></div>
+              
+              <!-- Mini Scanner Preview Header -->
+              <div class="mockup-header">
+                <span class="mockup-brand">TriageLens</span>
+                <span class="mockup-pill">Signal 98%</span>
+              </div>
+
+              <!-- Camera Pill Preview -->
+              <div class="mockup-camera-pill">
+                <div class="mockup-face-guide">
+                  <div class="mockup-corner tl"></div>
+                  <div class="mockup-corner tr"></div>
+                  <div class="mockup-corner bl"></div>
+                  <div class="mockup-corner br"></div>
+                </div>
+                <div class="mockup-status-tag">Hold Steady · 15s</div>
+              </div>
+
+              <!-- Live Waveform Preview -->
+              <div class="mockup-waveform-box">
+                <div class="mockup-waveform-title">Live Pulse Waveform (30 Hz)</div>
+                <div class="mockup-grid-canvas">
+                  <svg class="mockup-wave-svg" viewBox="0 0 200 40" preserveAspectRatio="none">
+                    <path d="M 0,20 Q 20,5 40,20 T 80,20 Q 90,0 100,20 T 140,20 Q 150,38 160,20 T 200,20" fill="none" stroke="#ffffff" stroke-width="2"/>
+                  </svg>
+                </div>
+              </div>
+
+              <!-- 4 Telemetry Cards Preview -->
+              <div class="mockup-cards-grid">
+                <div class="mockup-card">
+                  <span class="mc-label">Pulse</span>
+                  <span class="mc-val">72 <small>BPM</small></span>
+                </div>
+                <div class="mockup-card">
+                  <span class="mc-label">Breathing</span>
+                  <span class="mc-val">16 <small>RPM</small></span>
+                </div>
+                <div class="mockup-card">
+                  <span class="mc-label">Symmetry</span>
+                  <span class="mc-val green">Normal</span>
+                </div>
+                <div class="mockup-card">
+                  <span class="mc-label">Capillary</span>
+                  <span class="mc-val">98%</span>
+                </div>
+              </div>
+
+              <!-- Shutter Button Callout -->
+              <button id="hero-phone-cta-scan" class="mockup-shutter-btn" title="Tap to open full scanner">
+                <span class="shutter-core"></span>
+                <span>Tap to Scan</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Secondary Angled Smartphone Mockup (Finger Mode & Clinical Drawer) -->
+          <div class="device-mockup secondary-phone">
+            <div class="phone-rim"></div>
+            <div class="phone-screen">
+              <div class="phone-dynamic-island"></div>
+              <div class="mockup-header">
+                <span class="mockup-brand">Clinical Guidance</span>
+                <span class="mockup-pill blue">Verified</span>
+              </div>
+              <div class="mockup-drawer-preview">
+                <div class="mdp-badge normal">NORMAL SEVERITY</div>
+                <div class="mdp-title">Hemodynamic Stability Confirmed</div>
+                <p class="mdp-text">Resting heart rate 72 BPM and bilateral facial symmetry (Δ 0.02) indicate stable autonomic tone.</p>
+                <div class="mdp-item">✓ Normal sinus rhythm detected</div>
+                <div class="mdp-item">✓ Zero FAST stroke asymmetry</div>
+                <div class="mdp-item">✓ Capillary SQI at 98% baseline</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Floating iOS 26 Liquid Glass Feature Pills -->
+          <div class="floating-glass-card card-pulse-float">
+            <div class="fg-icon">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#ff453a" stroke-width="2.2">
+                <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
+              </svg>
+            </div>
+            <div class="fg-content">
+              <span class="fg-label">Pulse Rate</span>
+              <span class="fg-val">72 BPM</span>
+            </div>
+          </div>
+
+          <div class="floating-glass-card card-symmetry-float">
+            <div class="fg-icon">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#34c759" stroke-width="2">
+                <circle cx="12" cy="12" r="10"/>
+                <path d="M8 12h8"/>
+              </svg>
+            </div>
+            <div class="fg-content">
+              <span class="fg-label">Stroke Symmetry</span>
+              <span class="fg-val">Normal · Δ 0.02</span>
+            </div>
+          </div>
+
+          <div class="floating-glass-card card-sqi-float">
+            <div class="fg-icon">
+              <span class="status-dot green"></span>
+            </div>
+            <div class="fg-content">
+              <span class="fg-label">Signal Quality</span>
+              <span class="fg-val">98% Active</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Stats Section -->
+    <section id="stats" class="aerium-stats-section">
+      <div class="aerium-section-header">
+        <h2 class="aerium-section-title">
+          Designed for Scale.<br />
+          <span class="serif-accent">Validated in Real Spaces.</span>
+        </h2>
+      </div>
+
+      <div class="aerium-stats-grid">
+        <div class="stat-column">
+          <div class="stat-number">98.4%</div>
+          <div class="stat-desc">Correlation with medical-grade pulse oximetry across diverse Fitzpatrick skin types.</div>
+        </div>
+        <div class="stat-column">
+          <div class="stat-number">30 FPS</div>
+          <div class="stat-desc">Deterministic real-time chrominance & Butterworth filtering on budget mobile silicon.</div>
+        </div>
+        <div class="stat-column">
+          <div class="stat-number">15s</div>
+          <div class="stat-desc">Rapid non-invasive triage diagnostic window without physical contact or sensors.</div>
+        </div>
+        <div class="stat-column">
+          <div class="stat-number">0 KB</div>
+          <div class="stat-desc">Telemetry transmitted off device. 100% offline edge privacy guaranteed.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Feature Section 1: Optical Extraction & Biometric Radar Scanner -->
+    <section id="features" class="aerium-feature-section">
+      <div class="feature-two-col">
+        <!-- Left: Feature Text & Details -->
+        <div class="feature-text-col">
+          <div class="feature-badge">RAPID OPTICAL TRIAGING, FAST BY DESIGN</div>
+          <h3 class="feature-heading">
+            Optical Vital Extraction.<br />
+            <span class="serif-accent">Fast by Design</span>
+          </h3>
+
+          <div class="feature-item">
+            <h4 class="feature-item-title">Sub-Second Facial Transillumination</h4>
+            <p class="feature-item-desc">
+              Plane-Orthogonal-to-Skin (POS) chrominance projection isolates pulsatile blood volume changes in the microvascular bed at 30 Hz.
+            </p>
+          </div>
+
+          <div class="feature-item">
+            <h4 class="feature-item-title">Bilateral Facial Symmetry Tracking (FAST)</h4>
+            <p class="feature-item-desc">
+              Real-time 468-point 3D landmark tracking continuously measures oral commissure and palpebral fissure delta against interpupillary baseline.
+            </p>
+          </div>
+
+          <div class="feature-item">
+            <h4 class="feature-item-title">Operational Control, Not Just Data</h4>
+            <p class="feature-item-desc">
+              Deterministic Manchester Triage System (MTS) severity classification with on-device speech guidance and local trend storage.
+            </p>
+          </div>
+        </div>
+
+        <!-- Right: Biometric Radar Scanner Visualization -->
+        <div class="feature-visual-col">
+          <div class="radar-scanner-container">
+            <div class="radar-circle ring-outer"></div>
+            <div class="radar-circle ring-mid"></div>
+            <div class="radar-circle ring-inner"></div>
+            <div class="radar-crosshair-h"></div>
+            <div class="radar-crosshair-v"></div>
+            <div class="radar-sweep-arm"></div>
+            
+            <!-- Biometric Sensor Nodes -->
+            <div class="radar-node node-pulse" style="top: 24%; left: 32%;">
+              <span class="node-dot"></span>
+              <span class="node-label">rPPG · 72 BPM</span>
+            </div>
+            <div class="radar-node node-stroke" style="top: 68%; left: 62%;">
+              <span class="node-dot green"></span>
+              <span class="node-label">FAST · Normal</span>
+            </div>
+            <div class="radar-node node-rr" style="top: 35%; left: 75%;">
+              <span class="node-dot blue"></span>
+              <span class="node-label">RR · 16 RPM</span>
+            </div>
+            <div class="radar-node node-sqi" style="top: 72%; left: 28%;">
+              <span class="node-dot"></span>
+              <span class="node-label">SQI · 98%</span>
+            </div>
+
+            <div class="radar-center-core">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="1.8">
+                <circle cx="12" cy="12" r="3"/>
+                <path d="M12 2v3m0 14v3M2 12h3m14 0h3"/>
+              </svg>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Feature Section 2: Dual Mode Preview ("See Your Vitals. Control Your Health.") -->
+    <section class="aerium-dual-showcase-section">
+      <div class="aerium-section-header center">
+        <h2 class="aerium-section-title">
+          See Your Vitals.<br />
+          <span class="serif-accent">Control Your Health.</span>
+        </h2>
+        <p class="aerium-section-subtitle">
+          From ambient facial blood volume changes to rear lens transillumination with camera torch gating, TriageLens provides laboratory-grade telemetry anywhere.
+        </p>
+        <div class="section-cta-wrap">
+          <button id="cta-btn-launch-mode2" class="aerium-cta-primary">
+            Launch Web Scanner
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Feature Section 3: Architecture ("Technology That Works in Harmony") -->
+    <section id="technology" class="aerium-tech-section">
+      <div class="aerium-section-header">
+        <h2 class="aerium-section-title">
+          Technology That<br />
+          Works in <span class="serif-accent">Harmony</span>
+        </h2>
+        <p class="aerium-section-subtitle">Built to simplify daily clinical triage through intelligent, connected systems.</p>
+      </div>
+
+      <div class="tech-cards-grid">
+        <div class="tech-card">
+          <div class="tech-card-icon">⚡</div>
+          <h4 class="tech-card-title">WebAssembly & WebGL DSP Core</h4>
+          <p class="tech-card-desc">
+            Zero-allocation hot loops executing 4th-order Butterworth bandpass filters (0.75–3.0 Hz) and adaptive peak detection at 30 Hz.
+          </p>
+        </div>
+        <div class="tech-card">
+          <div class="tech-card-icon">👁️</div>
+          <h4 class="tech-card-title">MediaPipe Landmark Tracking</h4>
+          <p class="tech-card-desc">
+            468-point 3D facial topology isolating forehead vascular ROI and computing real-time FAST stroke asymmetry deltas.
+          </p>
+        </div>
+        <div class="tech-card">
+          <div class="tech-card-icon">📦</div>
+          <h4 class="tech-card-title">Native Android APK & Offline PWA</h4>
+          <p class="tech-card-desc">
+            Standalone 4.1 MB compiled Android APK container with hardware torch gating, paired with full offline service worker caching.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="aerium-footer">
+      <div class="footer-top-row">
+        <div class="footer-brand-col">
+          <div class="footer-logo">TRIAGELENS</div>
+          <p class="footer-tagline">Smarter living through thoughtfully designed technology.</p>
+          <div class="footer-actions">
+            <a href="/triagelens-release.apk" download="triagelens-release.apk" class="aerium-btn-ghost small">
+              Download Android APK
+            </a>
+            <a href="https://github.com/devrift/TriageLens" target="_blank" rel="noopener noreferrer" class="aerium-btn-ghost small">
+              GitHub Repository
+            </a>
+          </div>
+        </div>
+
+        <div class="footer-links-col">
+          <div class="links-group">
+            <span class="links-title">Product</span>
+            <a href="#hero">Overview</a>
+            <a href="#features">Optical rPPG</a>
+            <a href="#features">Stroke FAST</a>
+            <a href="/triagelens-release.apk" download>Android APK</a>
+          </div>
+          <div class="links-group">
+            <span class="links-title">Technology</span>
+            <a href="#technology">DSP Engine</a>
+            <a href="#technology">WebAssembly</a>
+            <a href="#technology">MediaPipe</a>
+            <a href="https://github.com/devrift/TriageLens/releases" target="_blank" rel="noopener noreferrer">Releases</a>
+          </div>
+          <div class="links-group">
+            <span class="links-title">Validation</span>
+            <a href="#stats">Clinical Accuracy</a>
+            <a href="#stats">Offline Privacy</a>
+            <a href="https://github.com/devrift/TriageLens" target="_blank" rel="noopener noreferrer">Source Code</a>
+          </div>
+        </div>
+      </div>
+
+      <!-- Giant Aesthetic Watermark -->
+      <div class="footer-giant-watermark">
+        TRIAGELENS
+      </div>
+    </footer>
+  </div>
+
+  <!-- =========================================================================
+       2. IOS 26 LIQUID GLASS SCANNER VIEW (Mobile Full-Screen & Desktop Modal)
+       ========================================================================= -->
+  <div id="scanner-view" class="app-viewport">
+    <!-- Top Status Bar -->
+    <header class="top-status-bar">
+      <button id="btn-back-to-landing" class="btn-brand-back" title="Back to Overview">
+        <span class="brand-title">TriageLens</span>
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M18 15l-6-6-6 6"/>
+        </svg>
+      </button>
+      <div id="status-title" class="status-title">Vital Discovery</div>
+      <div id="quality-pill" class="quality-pill">
+        <span class="status-dot"></span>
+        <span id="quality-text">Signal 98%</span>
+      </div>
+    </header>
+
+    <!-- Camera / Face Guide Pill Frame -->
+    <section class="camera-pill-container">
+      <div class="camera-pill-frame">
+        <video id="camera-preview" autoplay playsinline muted></video>
+        
+        <!-- Pill Optical Glass Overlay -->
+        <div class="pill-glass-overlay">
+          <!-- Face Alignment Reticle -->
+          <div id="face-target-box" class="face-reticle">
+            <span class="reticle-corner tl"></span>
+            <span class="reticle-corner tr"></span>
+            <span class="reticle-corner bl"></span>
+            <span class="reticle-corner br"></span>
+          </div>
+
+          <!-- Finger Alignment Guide (Visible in Finger mode) -->
+          <div id="finger-target-box" class="finger-prompt" style="display: none;">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+              <rect x="7" y="2" width="10" height="20" rx="5"/>
+              <path d="M12 18v.01"/>
+            </svg>
+            <span>Cover Rear Lens</span>
+          </div>
+
+          <!-- Bottom Status Pill inside Camera Frame -->
+          <div class="camera-status-pill">
+            <span id="camera-status-text">Hold steady · 15s</span>
+          </div>
+        </div>
+
+        <!-- Scan Progress Edge Indicator -->
+        <div id="scan-progress-bar" class="camera-progress-bar"></div>
+      </div>
+    </section>
+
+    <!-- Live Pulse Waveform Panel -->
+    <section class="waveform-section">
+      <div class="waveform-header">Live Pulse Waveform (30 Hz)</div>
+      <div class="waveform-grid-wrapper">
+        <canvas id="waveform-canvas"></canvas>
+      </div>
+    </section>
+
+    <!-- 6-Card Metric Grid (2 Rows x 3 Columns) -->
+    <section class="metric-grid-section">
+      <div class="metric-cards-grid">
+        <!-- Card 1: Pulse -->
+        <div class="glass-card" id="card-pulse">
+          <div class="card-top-row">
+            <span class="card-label">Pulse</span>
+            <svg class="card-icon heart-pulse" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
+            </svg>
+          </div>
+          <div class="card-value-row">
+            <span id="val-heart-rate" class="card-big-num">72</span>
+            <span class="card-unit">BPM</span>
+          </div>
+        </div>
+
+        <!-- Card 2: Breathing -->
+        <div class="glass-card" id="card-breathing">
+          <div class="card-top-row">
+            <span class="card-label">Breathing</span>
+            <svg class="card-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M12 3v18"/><path d="M6 8a6 6 0 0 0 12 0"/><path d="M6 16a6 6 0 0 0 12 0"/>
+            </svg>
+          </div>
+          <div class="card-value-row">
+            <span id="val-respiration" class="card-big-num">16</span>
+            <span class="card-unit">RPM</span>
+          </div>
+        </div>
+
+        <!-- Card 3: Stroke Symmetry -->
+        <div class="glass-card" id="card-symmetry">
+          <div class="card-top-row">
+            <span class="card-label">Stroke Symmetry</span>
+          </div>
+          <div class="card-value-row text-primary">
+            <span id="val-asymmetry" class="card-status-text">Normal</span>
+          </div>
+          <div id="status-asymmetry" class="card-sub-delta">Δ 0.02</div>
+        </div>
+
+        <!-- Card 4: Rhythm -->
+        <div class="glass-card" id="card-rhythm">
+          <div class="card-top-row">
+            <span class="card-label">Rhythm</span>
+          </div>
+          <div class="card-value-row text-primary">
+            <span id="val-rhythm" class="card-status-text">Regular</span>
+          </div>
+        </div>
+
+        <!-- Card 5: Stress -->
+        <div class="glass-card" id="card-stress">
+          <div class="card-top-row">
+            <span class="card-label">Stress</span>
+          </div>
+          <div class="card-value-row text-primary">
+            <span id="val-stress" class="card-status-text">Low</span>
+          </div>
+        </div>
+
+        <!-- Card 6: Capillary Flow -->
+        <div class="glass-card" id="card-flow">
+          <div class="card-top-row">
+            <span class="card-label">Capillary Flow</span>
+          </div>
+          <div class="card-value-row">
+            <span id="val-sqi" class="card-big-num">98%</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Floating Bottom Liquid-Glass Navigation Dock -->
+    <footer class="bottom-dock-container">
+      <nav class="liquid-dock">
+        <!-- 1. Home / Overview Button -->
+        <button id="nav-btn-home" class="dock-btn" title="Clinical Guidance & Overview">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+            <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+            <polyline points="9 22 9 12 15 12 15 22"/>
+          </svg>
+        </button>
+
+        <!-- 2. Scan Shutter Trigger Button (Active Highlight) -->
+        <button id="nav-btn-scan" class="dock-btn scan-trigger" title="Start 15s Scan">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="9"/>
+            <circle cx="12" cy="12" r="3" fill="currentColor"/>
+          </svg>
+        </button>
+
+        <!-- 3. Sensor Mode Toggle (Face rPPG vs Finger PPG) -->
+        <button id="nav-btn-mode" class="dock-btn" title="Switch Sensor Mode (Face / Finger)">
+          <svg id="icon-mode-face" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+            <circle cx="12" cy="10" r="4"/>
+            <path d="M6 20v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2"/>
+          </svg>
+          <svg id="icon-mode-finger" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" style="display: none;">
+            <path d="M12 2a4 4 0 0 0-4 4v9a4 4 0 0 0 8 0V6a4 4 0 0 0-4-4z"/>
+          </svg>
+        </button>
+
+        <!-- 4. History Button -->
+        <button id="nav-btn-history" class="dock-btn" title="Session History">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+            <circle cx="12" cy="12" r="10"/>
+            <polyline points="12 6 12 12 16 14"/>
+          </svg>
+        </button>
+
+        <!-- 5. Stop / Pause Button -->
+        <button id="nav-btn-stop" class="dock-btn" title="Stop / Reset Scan" disabled>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+            <rect x="6" y="6" width="12" height="12" rx="2"/>
+          </svg>
+        </button>
+
+        <!-- 6. Settings & APK Download Button -->
+        <button id="nav-btn-settings" class="dock-btn" title="Settings & Download APK">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+            <circle cx="12" cy="12" r="3"/>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+          </svg>
+        </button>
+      </nav>
+    </footer>
+  </div>
+
+  <!-- Clinical Interpretation Drawer -->
+  <aside id="companion-drawer" class="glass-sheet-drawer" style="display: none;">
+    <div class="drawer-drag-handle"></div>
+    <div class="drawer-header">
+      <div class="drawer-title">Clinical Interpretation</div>
+      <div class="drawer-actions">
+        <button id="btn-speak-guidance" class="btn-icon-pill" title="Listen to Voice Guidance">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
+            <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/>
+          </svg>
+          Voice
+        </button>
+        <span id="severity-pill" class="severity-pill NORMAL">Normal</span>
+        <button id="close-drawer" class="close-btn">&times;</button>
       </div>
     </div>
-    <div class="nav-links">
-      <button id="nav-btn-history" class="nav-btn" title="Scan History">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-        History
-      </button>
-      <button id="nav-btn-apk" class="nav-btn primary" title="Download Android APK">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-        Download APK
-      </button>
-    </div>
-  </header>
-
-  <main>
-    <div class="grid-layout">
-      <!-- Left Column: Camera Viewport & Real-time Waveform -->
-      <section class="card">
-        <div class="card-header">
-          <div class="card-title">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
-            Sensor Viewport
-          </div>
-          <div class="mode-selector">
-            <button id="mode-btn-face" class="mode-btn active">Face rPPG</button>
-            <button id="mode-btn-finger" class="mode-btn">Finger PPG</button>
-          </div>
-        </div>
-
-        <div class="camera-wrapper">
-          <video id="camera-preview" autoplay playsinline muted></video>
-          <div class="camera-overlay">
-            <div class="hud-top">
-              <span id="quality-badge" class="quality-badge">Sensor Idle</span>
-            </div>
-            <div id="face-target-box" class="face-target-box"></div>
-            <div id="finger-target-box" class="finger-target-box" style="display: none;">
-              Cover Rear Lens
-            </div>
-          </div>
-          <div id="scan-progress-bar" class="scan-progress-bar"></div>
-        </div>
-
-        <div class="waveform-container">
-          <span class="waveform-label">Pulsatile Blood Volume Signal H(t)</span>
-          <canvas id="waveform-canvas"></canvas>
-        </div>
-
-        <div class="action-row">
-          <button id="btn-start-scan" class="btn btn-primary">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
-            Start 15s Clinical Scan
-          </button>
-          <button id="btn-stop-scan" class="btn btn-danger" disabled>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12"/></svg>
-            Stop
-          </button>
-        </div>
-      </section>
-
-      <!-- Right Column: Telemetry Readouts & Clinical Guidance -->
-      <section class="card">
-        <div class="card-header">
-          <div class="card-title">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
-            Biometric Telemetry Readouts
-          </div>
-        </div>
-
-        <div class="telemetry-grid">
-          <!-- Heart Rate -->
-          <div class="metric-box">
-            <div class="metric-label">
-              Heart Rate
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="#ef4444" stroke="#ef4444" stroke-width="1"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
-            </div>
-            <div class="metric-value-row">
-              <span id="val-heart-rate" class="metric-number">--</span>
-              <span class="metric-unit">BPM</span>
-            </div>
-            <div class="metric-status">Resting Target: 60-100</div>
-          </div>
-
-          <!-- Respiration Rate -->
-          <div class="metric-box">
-            <div class="metric-label">
-              Respiration Rate
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#06b6d4" stroke-width="2"><path d="M12 3v18"/><path d="M6 8a6 6 0 0 0 12 0"/><path d="M6 16a6 6 0 0 0 12 0"/></svg>
-            </div>
-            <div class="metric-value-row">
-              <span id="val-respiration" class="metric-number">--</span>
-              <span class="metric-unit">RPM</span>
-            </div>
-            <div class="metric-status">Resting Target: 12-20</div>
-          </div>
-
-          <!-- FAST Stroke Asymmetry -->
-          <div class="metric-box">
-            <div class="metric-label">
-              FAST Asymmetry
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M8 15s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>
-            </div>
-            <div class="metric-value-row">
-              <span id="val-asymmetry" class="metric-number">--</span>
-              <span class="metric-unit">Δ</span>
-            </div>
-            <div id="status-asymmetry" class="metric-status">Normal: &lt; 0.05</div>
-          </div>
-
-          <!-- Signal Quality Index -->
-          <div class="metric-box">
-            <div class="metric-label">
-              Signal Quality
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2"><path d="M2 20h20"/><path d="M5 20v-8"/><path d="M10 20v-5"/><path d="M15 20v-11"/><path d="M20 20v-15"/></svg>
-            </div>
-            <div class="metric-value-row">
-              <span id="val-sqi" class="metric-number">--%</span>
-              <span class="metric-unit">SQI</span>
-            </div>
-            <div class="metric-status">Threshold: ≥ 65%</div>
-          </div>
-        </div>
-
-        <!-- AI Clinical Companion Guidance Card -->
-        <div id="companion-card" class="companion-box" style="display: none;">
-          <div class="companion-header">
-            <div class="companion-title">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a10 10 0 1 0 10 10H12V2z"/></svg>
-              Clinical Interpretation
-            </div>
-            <span id="severity-pill" class="severity-pill NORMAL">NORMAL</span>
-          </div>
-          <div id="companion-summary" class="companion-text"></div>
-          <ul id="companion-advice-list" class="advice-list"></ul>
-        </div>
-      </section>
-    </div>
-  </main>
+    <div id="companion-summary" class="drawer-summary-text"></div>
+    <ul id="companion-advice-list" class="drawer-advice-list"></ul>
+  </aside>
 
   <!-- Download APK Modal -->
   <div id="apk-modal" class="modal-backdrop">
-    <div class="modal-dialog">
+    <div class="modal-dialog glass-modal">
       <div class="modal-header">
-        <div class="card-title">Download TriageLens Mobile</div>
+        <div class="modal-title">TriageLens Native Package</div>
         <button id="close-apk-modal" class="close-btn">&times;</button>
       </div>
       <div class="apk-download-hero">
         <div class="apk-icon">📱</div>
-        <div style="font-weight:700; font-size:1.15rem; color:#fff;">TriageLens Android APK</div>
-        <div style="font-size:0.8rem; color:var(--text-muted); max-width:400px;">
-          Standalone, zero-hardware vital sign telemetry package with local WebAssembly & WebGL processing.
+        <div class="apk-title">Android APK (v1.0.0 • 4.1 MB)</div>
+        <div class="apk-desc">
+          Official compiled native Android package. Client-side WebAssembly & WebGL telemetry engine with zero hardware dependencies.
         </div>
-        <a id="apk-direct-download" href="/triagelens-release.apk" download="triagelens-release.apk" class="btn btn-primary" style="text-decoration:none; width:auto; padding:0.65rem 1.5rem; margin-top:0.5rem;">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-          Download APK (v1.0.0 • 4.1 MB)
+        <a id="apk-direct-download" href="/triagelens-release.apk" download="triagelens-release.apk" class="btn-liquid-primary">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+            <polyline points="7 10 12 15 17 10"/>
+            <line x1="12" y1="15" x2="12" y2="3"/>
+          </svg>
+          Download APK (4.1 MB)
         </a>
-        <div style="margin-top: 0.4rem;">
-          <a href="https://github.com/devrift/TriageLens/releases/download/v1.0.0-apk/app-debug.apk" target="_blank" rel="noopener noreferrer" style="color: #60a5fa; font-size: 0.75rem; text-decoration: underline;">
-            GitHub Mirror (app-debug.apk)
+        <div class="mirror-link-row">
+          <a href="https://github.com/devrift/TriageLens/releases/download/v1.0.0-apk/app-debug.apk" target="_blank" rel="noopener noreferrer">
+            GitHub Release Mirror (app-debug.apk)
           </a>
         </div>
       </div>
-      <div style="font-size:0.8rem; color:var(--text-muted); line-height:1.5;">
-        <strong style="color:#fff;">Option 2: Progressive Web App (PWA)</strong><br />
-        You can also install TriageLens directly onto Android or iOS without downloading an APK:
-        tap <strong>Share</strong> or <strong>Browser Menu (⋮)</strong> and select <strong>"Add to Home Screen"</strong>.
+      <div class="pwa-callout">
+        <strong>Progressive Web App (PWA) Option</strong><br />
+        To install instantly on iOS or Android without an APK: tap <strong>Share</strong> or <strong>Menu (⋮)</strong> and select <strong>"Add to Home Screen"</strong>.
       </div>
     </div>
   </div>
 
   <!-- History Modal -->
   <div id="history-modal" class="modal-backdrop">
-    <div class="modal-dialog">
+    <div class="modal-dialog glass-modal">
       <div class="modal-header">
-        <div class="card-title">Past Scan Sessions</div>
+        <div class="modal-title">Past Scan Sessions</div>
         <button id="close-history-modal" class="close-btn">&times;</button>
       </div>
       <div id="history-list" class="history-list"></div>
-      <div style="display:flex; justify-content:flex-end;">
-        <button id="btn-clear-history" class="btn btn-danger" style="flex:none; padding:0.4rem 0.8rem; font-size:0.75rem;">Clear All History</button>
+      <div class="modal-footer">
+        <button id="btn-clear-history" class="btn-danger-pill">Clear History</button>
       </div>
     </div>
   </div>
-
-  <footer>
-    <div>TriageLens Engine v1.0.0 • 100% Client-Side DSP • Zero Data Egress</div>
-    <div>Offline WebAssembly & WebGL Powered</div>
-  </footer>
 
   <script type="module" src="/src/ui/app.ts"></script>
 </body>
