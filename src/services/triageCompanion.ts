@@ -214,32 +214,42 @@ Respond STRICTLY in valid JSON matching this schema:
   "actionableAdvice": ["step 1", "step 2"]
 }`;
 
-  const response = await fetch(endpoint, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      contents: [{ parts: [{ text: prompt }] }],
-      generationConfig: { responseMimeType: 'application/json', temperature: 0.2 },
-    }),
-  });
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 4000);
 
-  if (!response.ok) {
-    throw new Error(`Gemini request failed: ${response.status}`);
+  try {
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      signal: controller.signal,
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: { responseMimeType: 'application/json', temperature: 0.2 },
+      }),
+    });
+    clearTimeout(timeoutId);
+
+    if (!response.ok) {
+      throw new Error(`Gemini request failed: ${response.status}`);
+    }
+
+    const json = await response.json();
+    const rawText = json?.candidates?.[0]?.content?.parts?.[0]?.text;
+    if (!rawText) throw new Error('Empty Gemini response');
+
+    const parsed = JSON.parse(rawText);
+    return {
+      summaryText: parsed.summaryText || 'Vitals telemetry analyzed.',
+      guidanceText: parsed.guidanceText || 'All metrics analyzed successfully.',
+      severityLevel: parsed.severityLevel || 'NORMAL',
+      actionableAdvice: Array.isArray(parsed.actionableAdvice) ? parsed.actionableAdvice : ['Rest comfortably.'],
+      isOfflineFallback: false,
+      generatedAt: Date.now(),
+    };
+  } catch (err) {
+    clearTimeout(timeoutId);
+    throw err;
   }
-
-  const json = await response.json();
-  const rawText = json?.candidates?.[0]?.content?.parts?.[0]?.text;
-  if (!rawText) throw new Error('Empty Gemini response');
-
-  const parsed = JSON.parse(rawText);
-  return {
-    summaryText: parsed.summaryText || 'Vitals telemetry analyzed.',
-    guidanceText: parsed.guidanceText || 'All metrics analyzed successfully.',
-    severityLevel: parsed.severityLevel || 'NORMAL',
-    actionableAdvice: Array.isArray(parsed.actionableAdvice) ? parsed.actionableAdvice : ['Rest comfortably.'],
-    isOfflineFallback: false,
-    generatedAt: Date.now(),
-  };
 }
 
 /**
@@ -255,40 +265,50 @@ async function queryOpenRouterCompanion(input: TriageCompanionInput, apiKey: str
     baselineDelta: input.baselineDelta,
   });
 
-  const response = await fetch(endpoint, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify({
-      model: 'openai/gpt-4o-mini',
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userContent },
-      ],
-      response_format: { type: 'json_object' },
-      temperature: 0.2,
-    }),
-  });
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 4000);
 
-  if (!response.ok) {
-    throw new Error(`OpenRouter request failed: ${response.status}`);
+  try {
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${apiKey}`,
+      },
+      signal: controller.signal,
+      body: JSON.stringify({
+        model: 'openai/gpt-4o-mini',
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userContent },
+        ],
+        response_format: { type: 'json_object' },
+        temperature: 0.2,
+      }),
+    });
+    clearTimeout(timeoutId);
+
+    if (!response.ok) {
+      throw new Error(`OpenRouter request failed: ${response.status}`);
+    }
+
+    const json = await response.json();
+    const content = json?.choices?.[0]?.message?.content;
+    if (!content) throw new Error('Empty OpenRouter response');
+
+    const parsed = JSON.parse(content);
+    return {
+      summaryText: parsed.summaryText || 'Vitals telemetry analyzed.',
+      guidanceText: parsed.guidanceText || 'Telemetry processed.',
+      severityLevel: parsed.severityLevel || 'NORMAL',
+      actionableAdvice: Array.isArray(parsed.actionableAdvice) ? parsed.actionableAdvice : ['Rest comfortably.'],
+      isOfflineFallback: false,
+      generatedAt: Date.now(),
+    };
+  } catch (err) {
+    clearTimeout(timeoutId);
+    throw err;
   }
-
-  const json = await response.json();
-  const content = json?.choices?.[0]?.message?.content;
-  if (!content) throw new Error('Empty OpenRouter response');
-
-  const parsed = JSON.parse(content);
-  return {
-    summaryText: parsed.summaryText || 'Vitals telemetry analyzed.',
-    guidanceText: parsed.guidanceText || 'Telemetry processed.',
-    severityLevel: parsed.severityLevel || 'NORMAL',
-    actionableAdvice: Array.isArray(parsed.actionableAdvice) ? parsed.actionableAdvice : ['Rest comfortably.'],
-    isOfflineFallback: false,
-    generatedAt: Date.now(),
-  };
 }
 
 /**

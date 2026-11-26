@@ -29,6 +29,7 @@ public class MainActivity extends BridgeActivity {
         // Configure WebChromeClient to grant camera video capture to getUserMedia in WebView
         if (this.bridge != null && this.bridge.getWebView() != null) {
             final WebView webView = this.bridge.getWebView();
+            webView.addJavascriptInterface(new AppUpdateBridge(this, webView), "AndroidAppUpdater");
             webView.setWebChromeClient(new WebChromeClient() {
                 @Override
                 public void onPermissionRequest(final PermissionRequest request) {

@@ -29,6 +29,7 @@ import {
   speakGuidance,
   stopSpeaking,
 } from '../services/triageCompanion';
+import { UpdateService, UpdateCheckResult } from '../services/updateService';
 
 type AppTab = 'scanner' | 'mode' | 'history' | 'settings';
 
@@ -113,6 +114,26 @@ class TriageAppUI {
   private btnToggleVoice!: HTMLButtonElement;
   private btnRequestPermission!: HTMLButtonElement;
 
+  // In-App Update DOM
+  private updateCurrentVersionEl!: HTMLElement;
+  private updatePermissionStatusEl!: HTMLElement;
+  private btnCheckUpdates!: HTMLButtonElement;
+  private btnOpenSourceSettings!: HTMLButtonElement;
+  private updateStatusMsgEl!: HTMLElement;
+  private updateModalBackdrop!: HTMLElement;
+  private modalUpdateTitle!: HTMLElement;
+  private modalUpdateVersionTag!: HTMLElement;
+  private modalUpdateDesc!: HTMLElement;
+  private modalUpdateCloseBtn!: HTMLButtonElement;
+  private modalUnknownSourceWarning!: HTMLElement;
+  private modalBtnOpenSettings!: HTMLButtonElement;
+  private modalNotesList!: HTMLElement;
+  private modalDownloadProgressContainer!: HTMLElement;
+  private modalDownloadStatusLabel!: HTMLElement;
+  private modalBtnDismiss!: HTMLButtonElement;
+  private modalBtnInstall!: HTMLButtonElement;
+  private activePendingUpdate: UpdateCheckResult | null = null;
+
   // Clinical Interpretation Drawer DOM
   private companionDrawer!: HTMLElement;
   private severityPill!: HTMLElement;
@@ -154,6 +175,8 @@ class TriageAppUI {
     this.refreshHistory();
     this.refreshDiagnostics();
     this.startWaveformLoop();
+    this.refreshUpdateStatus();
+    this.checkForUpdatesSilently();
   }
 
   private isAppShellActive(): boolean {
@@ -320,6 +343,29 @@ class TriageAppUI {
     });
 
     this.btnRequestPermission.addEventListener('click', () => this.requestCameraPermissionCheck());
+
+    // In-App Update DOM elements
+    this.updateCurrentVersionEl = document.getElementById('update-current-version') as HTMLElement;
+    this.updatePermissionStatusEl = document.getElementById('update-permission-status') as HTMLElement;
+    this.btnCheckUpdates = document.getElementById('btn-check-updates') as HTMLButtonElement;
+    this.btnOpenSourceSettings = document.getElementById('btn-open-source-settings') as HTMLButtonElement;
+    this.updateStatusMsgEl = document.getElementById('update-status-msg') as HTMLElement;
+
+    // In-App Update Modal elements
+    this.updateModalBackdrop = document.getElementById('update-modal-backdrop') as HTMLElement;
+    this.modalUpdateTitle = document.getElementById('modal-update-title') as HTMLElement;
+    this.modalUpdateVersionTag = document.getElementById('modal-update-version-tag') as HTMLElement;
+    this.modalUpdateDesc = document.getElementById('modal-update-desc') as HTMLElement;
+    this.modalUpdateCloseBtn = document.getElementById('modal-update-close') as HTMLButtonElement;
+    this.modalUnknownSourceWarning = document.getElementById('modal-unknown-source-warning') as HTMLElement;
+    this.modalBtnOpenSettings = document.getElementById('modal-btn-open-settings') as HTMLButtonElement;
+    this.modalNotesList = document.getElementById('modal-notes-list') as HTMLElement;
+    this.modalDownloadProgressContainer = document.getElementById('modal-download-progress-container') as HTMLElement;
+    this.modalDownloadStatusLabel = document.getElementById('modal-download-status-label') as HTMLElement;
+    this.modalBtnDismiss = document.getElementById('modal-btn-dismiss') as HTMLButtonElement;
+    this.modalBtnInstall = document.getElementById('modal-btn-install') as HTMLButtonElement;
+
+    this.initUpdateListeners();
 
     // Clinical Drawer elements
     this.companionDrawer = document.getElementById('companion-drawer') as HTMLElement;
@@ -1078,6 +1124,238 @@ class TriageAppUI {
     };
 
     draw();
+  }
+
+  private initUpdateListeners(): void {
+    if (this.btnCheckUpdates) {
+      this.btnCheckUpdates.addEventListener('click', () => this.handleManualCheckUpdates());
+    }
+
+    if (this.btnOpenSourceSettings) {
+      this.btnOpenSourceSettings.addEventListener('click', () => {
+        UpdateService.openUnknownSourcesSettings();
+      });
+    }
+
+    if (this.modalBtnOpenSettings) {
+      this.modalBtnOpenSettings.addEventListener('click', () => {
+        UpdateService.openUnknownSourcesSettings();
+        setTimeout(() => {
+          this.refreshUpdateStatus();
+        }, 1000);
+      });
+    }
+
+    if (this.modalUpdateCloseBtn) {
+      this.modalUpdateCloseBtn.addEventListener('click', () => this.closeUpdateModal());
+    }
+
+    if (this.modalBtnDismiss) {
+      this.modalBtnDismiss.addEventListener('click', () => this.closeUpdateModal());
+    }
+
+    if (this.modalBtnInstall) {
+      this.modalBtnInstall.addEventListener('click', () => this.executePendingUpdate());
+    }
+
+    // Native bridge custom event listeners
+    window.addEventListener('onUpdateDownloadStarted', () => {
+      if (this.modalDownloadProgressContainer) {
+        this.modalDownloadProgressContainer.style.display = 'flex';
+      }
+      if (this.modalDownloadStatusLabel) {
+        this.modalDownloadStatusLabel.textContent = 'Downloading APK update via Android Manager...';
+      }
+      if (this.modalBtnInstall) {
+        this.modalBtnInstall.disabled = true;
+        this.modalBtnInstall.textContent = 'Downloading...';
+      }
+    });
+
+    window.addEventListener('onUpdateDownloadComplete', () => {
+      if (this.modalDownloadStatusLabel) {
+        this.modalDownloadStatusLabel.textContent = 'Download complete! Opening package installer...';
+      }
+      if (this.modalBtnInstall) {
+        this.modalBtnInstall.disabled = false;
+        this.modalBtnInstall.textContent = 'Install';
+      }
+    });
+
+    window.addEventListener('onUpdateInstallerLaunched', () => {
+      this.closeUpdateModal();
+    });
+
+    window.addEventListener('onUpdateError', (e: any) => {
+      const msg = e?.detail || 'An error occurred during update';
+      if (this.modalDownloadStatusLabel) {
+        this.modalDownloadStatusLabel.textContent = `Update Error: ${msg}`;
+      }
+      if (this.modalBtnInstall) {
+        this.modalBtnInstall.disabled = false;
+        this.modalBtnInstall.textContent = 'Retry Install';
+      }
+    });
+
+    // Check again when app comes back to foreground
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') {
+        this.refreshUpdateStatus();
+      }
+    });
+  }
+
+  private refreshUpdateStatus(): void {
+    const info = UpdateService.getInstalledVersionInfo();
+    const isNative = UpdateService.isNativeAndroid();
+    const canInstall = UpdateService.canRequestPackageInstalls();
+
+    if (this.updateCurrentVersionEl) {
+      this.updateCurrentVersionEl.textContent = `v${info.versionName} (Build ${info.versionCode})`;
+    }
+
+    if (this.updatePermissionStatusEl) {
+      if (isNative) {
+        this.updatePermissionStatusEl.textContent = canInstall ? 'Allowed' : 'Not Allowed (Requires Settings)';
+        this.updatePermissionStatusEl.style.color = canInstall ? 'var(--accent-green)' : 'var(--accent-amber)';
+        if (this.btnOpenSourceSettings) {
+          this.btnOpenSourceSettings.style.display = canInstall ? 'none' : 'block';
+        }
+      } else {
+        this.updatePermissionStatusEl.textContent = 'Browser Sideload (PWA)';
+        this.updatePermissionStatusEl.style.color = 'var(--text-secondary)';
+        if (this.btnOpenSourceSettings) {
+          this.btnOpenSourceSettings.style.display = 'none';
+        }
+      }
+    }
+
+    // Sync modal warning box state if modal is open
+    if (this.modalUnknownSourceWarning && this.activePendingUpdate) {
+      const requiresPermission = isNative && !canInstall;
+      this.modalUnknownSourceWarning.style.display = requiresPermission ? 'flex' : 'none';
+    }
+  }
+
+  private async checkForUpdatesSilently(): Promise<void> {
+    try {
+      const res = await UpdateService.checkForUpdates();
+      if (res.hasUpdate) {
+        this.activePendingUpdate = res;
+        this.showUpdateModal(res);
+      }
+    } catch {
+      // Non-blocking silent background check
+    }
+  }
+
+  private async handleManualCheckUpdates(): Promise<void> {
+    if (!this.btnCheckUpdates) return;
+    this.btnCheckUpdates.disabled = true;
+    this.btnCheckUpdates.textContent = 'Checking Server...';
+    if (this.updateStatusMsgEl) {
+      this.updateStatusMsgEl.textContent = 'Querying release version manifest...';
+    }
+
+    try {
+      const res = await UpdateService.checkForUpdates();
+      this.activePendingUpdate = res;
+      this.refreshUpdateStatus();
+
+      if (res.hasUpdate) {
+        if (this.updateStatusMsgEl) {
+          this.updateStatusMsgEl.textContent = `Update available: v${res.latestVersion}. Tap below to install.`;
+          this.updateStatusMsgEl.style.color = 'var(--accent-green)';
+        }
+        this.showUpdateModal(res);
+      } else {
+        if (this.updateStatusMsgEl) {
+          this.updateStatusMsgEl.textContent = `TriageLens is up to date (v${res.currentVersion}).`;
+          this.updateStatusMsgEl.style.color = 'var(--text-secondary)';
+        }
+      }
+    } catch (err: any) {
+      if (this.updateStatusMsgEl) {
+        this.updateStatusMsgEl.textContent = 'Failed to check for updates. Check connection.';
+        this.updateStatusMsgEl.style.color = 'var(--accent-red)';
+      }
+    } finally {
+      this.btnCheckUpdates.disabled = false;
+      this.btnCheckUpdates.textContent = 'Check for Updates';
+    }
+  }
+
+  private showUpdateModal(result: UpdateCheckResult): void {
+    if (!this.updateModalBackdrop) return;
+
+    this.modalUpdateTitle.textContent = result.title;
+    this.modalUpdateVersionTag.textContent = `v${result.latestVersion} (Build ${result.latestVersionCode})`;
+    this.modalUpdateDesc.textContent = `A newer release of TriageLens is available for your device (Installed: v${result.currentVersion}).`;
+
+    // Populate release notes
+    this.modalNotesList.innerHTML = '';
+    result.releaseNotes.forEach((note) => {
+      const li = document.createElement('li');
+      li.textContent = note;
+      this.modalNotesList.appendChild(li);
+    });
+
+    const isNative = UpdateService.isNativeAndroid();
+    const canInstall = UpdateService.canRequestPackageInstalls();
+    const requiresPermission = isNative && !canInstall;
+
+    if (this.modalUnknownSourceWarning) {
+      this.modalUnknownSourceWarning.style.display = requiresPermission ? 'flex' : 'none';
+    }
+
+    if (this.modalDownloadProgressContainer) {
+      this.modalDownloadProgressContainer.style.display = 'none';
+    }
+
+    if (this.modalBtnInstall) {
+      this.modalBtnInstall.disabled = false;
+      this.modalBtnInstall.textContent = requiresPermission ? 'Authorize & Install' : 'Download & Install';
+    }
+
+    this.updateModalBackdrop.style.display = 'flex';
+  }
+
+  private closeUpdateModal(): void {
+    if (this.updateModalBackdrop) {
+      this.updateModalBackdrop.style.display = 'none';
+    }
+  }
+
+  private executePendingUpdate(): void {
+    if (!this.activePendingUpdate) return;
+
+    const isNative = UpdateService.isNativeAndroid();
+    const canInstall = UpdateService.canRequestPackageInstalls();
+
+    if (isNative && !canInstall) {
+      // Permission not yet granted, launch settings directly
+      UpdateService.openUnknownSourcesSettings();
+      if (this.modalDownloadStatusLabel) {
+        this.modalDownloadStatusLabel.textContent = 'Please enable "Allow from this source" in Android Settings and return.';
+      }
+      if (this.modalDownloadProgressContainer) {
+        this.modalDownloadProgressContainer.style.display = 'flex';
+      }
+      return;
+    }
+
+    if (this.modalDownloadProgressContainer) {
+      this.modalDownloadProgressContainer.style.display = 'flex';
+    }
+    if (this.modalDownloadStatusLabel) {
+      this.modalDownloadStatusLabel.textContent = 'Starting download...';
+    }
+    if (this.modalBtnInstall) {
+      this.modalBtnInstall.disabled = true;
+      this.modalBtnInstall.textContent = 'Downloading...';
+    }
+
+    UpdateService.startUpdate(this.activePendingUpdate.apkUrl);
   }
 }
 

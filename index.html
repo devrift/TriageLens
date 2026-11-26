@@ -651,6 +651,28 @@
             </div>
             <button id="btn-request-permission" class="setting-toggle-btn" type="button">Check Access</button>
           </div>
+
+          <!-- In-App Updates Card -->
+          <div class="liquid-glass-card diag-card update-diag-card">
+            <div class="diag-row-title">App Updates</div>
+            <div class="diag-kv-row">
+              <span class="diag-k">Installed Version</span>
+              <span id="update-current-version" class="diag-v">v1.0.0</span>
+            </div>
+            <div class="diag-kv-row">
+              <span class="diag-k">Unknown Sources</span>
+              <span id="update-permission-status" class="diag-v">Allowed</span>
+            </div>
+            <div class="update-action-row">
+              <button id="btn-check-updates" class="primary-scan-pill update-action-btn" type="button">
+                Check for Updates
+              </button>
+              <button id="btn-open-source-settings" class="setting-toggle-btn" type="button" style="display: none;">
+                Settings
+              </button>
+            </div>
+            <div id="update-status-msg" class="update-status-note">Tap to verify latest APK release.</div>
+          </div>
         </div>
       </section>
     </main>
@@ -715,6 +737,69 @@
     <div id="companion-summary" class="drawer-summary-text"></div>
     <ul id="companion-advice-list" class="drawer-advice-list"></ul>
   </aside>
+
+  <!-- In-App Update Liquid Glass Modal Dialog -->
+  <div id="update-modal-backdrop" class="glass-modal-backdrop" style="display: none;">
+    <div class="glass-modal-card">
+      <div class="glass-modal-glow"></div>
+      <div class="glass-modal-header">
+        <div class="modal-icon-badge">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+            <polyline points="7 10 12 15 17 10"/>
+            <line x1="12" y1="15" x2="12" y2="3"/>
+          </svg>
+        </div>
+        <div class="modal-header-titles">
+          <h3 id="modal-update-title" class="modal-title">Update Available</h3>
+          <span id="modal-update-version-tag" class="modal-version-tag">v1.0.1</span>
+        </div>
+        <button id="modal-update-close" class="modal-close-btn" type="button">&times;</button>
+      </div>
+
+      <div class="modal-body">
+        <p id="modal-update-desc" class="modal-desc-text">
+          A new version of TriageLens is ready for installation.
+        </p>
+
+        <div id="modal-unknown-source-warning" class="unknown-source-box" style="display: none;">
+          <div class="warning-icon-row">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2">
+              <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+              <line x1="12" y1="9" x2="12" y2="13"/>
+              <line x1="12" y1="17" x2="12.01" y2="17"/>
+            </svg>
+            <span class="warning-title">Unknown Sources Permission Required</span>
+          </div>
+          <p class="warning-text">
+            To install this APK update, Android requires permission to install apps from this source. Please tap below to enable it in Settings.
+          </p>
+          <button id="modal-btn-open-settings" class="unknown-settings-btn" type="button">
+            Open Unknown Sources Settings
+          </button>
+        </div>
+
+        <div class="modal-release-notes">
+          <div class="notes-heading">What's New:</div>
+          <ul id="modal-notes-list" class="notes-list"></ul>
+        </div>
+
+        <div id="modal-download-progress-container" class="download-progress-box" style="display: none;">
+          <div class="download-status-line">
+            <span id="modal-download-status-label">Downloading APK update...</span>
+          </div>
+          <div class="download-progress-track">
+            <div id="modal-download-progress-bar" class="download-progress-fill"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button id="modal-btn-dismiss" class="modal-secondary-btn" type="button">Later</button>
+        <button id="modal-btn-install" class="modal-primary-btn" type="button">Download &amp; Install</button>
+      </div>
+    </div>
+  </div>
 
   <script type="module" src="/src/ui/app.ts"></script>
 </body>
