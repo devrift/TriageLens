@@ -45,6 +45,7 @@ export class FaceMeshEngine {
   private isInitialized: boolean = false;
   private isInitializing: boolean = false;
   private isFaceMeshBusy: boolean = false;
+  private hasSucceededOnce: boolean = false;
   private consecutiveFailures: number = 0;
   private isMediaPipeDisabled: boolean = false;
   private latestResults: Results | null = null;
@@ -68,7 +69,7 @@ export class FaceMeshEngine {
     this.isInitializing = true;
 
     try {
-      const locateFile = config?.locateFile ?? ((file: string) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`);
+      const locateFile = config?.locateFile ?? ((file: string) => `/mediapipe/face_mesh/${file}`);
       
       const FaceMeshConstructor = (FaceMesh as any)?.FaceMesh || FaceMesh;
       if (typeof FaceMeshConstructor === 'function') {
@@ -82,6 +83,7 @@ export class FaceMeshEngine {
 
         this.faceMesh?.onResults((results: Results) => {
           this.latestResults = results;
+          this.hasSucceededOnce = true;
           if (this.resolveFramePromise) {
             this.resolveFramePromise(results);
             this.resolveFramePromise = null;
@@ -93,9 +95,22 @@ export class FaceMeshEngine {
     } catch (err) {
       console.warn('FaceMesh initialization failed; optical forehead tracker active:', err);
       this.faceMesh = null;
+      this.isMediaPipeDisabled = true;
     } finally {
       this.isInitializing = false;
     }
+  }
+
+  public getDiagnosticStatus(): {
+    initialized: boolean;
+    mediaPipeActive: boolean;
+    fallbackActive: boolean;
+  } {
+    return {
+      initialized: this.isInitialized,
+      mediaPipeActive: this.isInitialized && !this.isMediaPipeDisabled,
+      fallbackActive: !this.isInitialized || this.isMediaPipeDisabled,
+    };
   }
 
   public getLatestResults(): Results | null {
@@ -130,6 +145,7 @@ export class FaceMeshEngine {
     const videoHeight = videoEl.videoHeight;
 
     let landmarks: NormalizedLandmark[] | null = null;
+    let mediaPipeResponded = false;
 
     // 2. Try MediaPipe FaceMesh detection with concurrency guard and timeout
     if (this.faceMesh && this.isInitialized && !this.isFaceMeshBusy && !this.isMediaPipeDisabled) {
@@ -139,35 +155,39 @@ export class FaceMeshEngine {
           this.resolveFramePromise = resolve;
         });
 
-        // Run .send() safely ensuring zero unhandled rejections
+        let sendErrored = false;
         const sendAction = (async (): Promise<Results | null> => {
           try {
             await this.faceMesh!.send({ image: videoEl });
             return await resultsPromise;
           } catch {
+            sendErrored = true;
             return null;
           } finally {
             this.isFaceMeshBusy = false;
           }
         })();
 
-        // Timeout race: if FaceMesh takes > 120ms (e.g. mobile GPU hitch or offline delay), fall back to optical
+        // Allow generous warmup for first WASM compile, tight 150ms thereafter
+        const timeoutMs = this.hasSucceededOnce ? 150 : 2500;
         const results = await Promise.race([
           sendAction,
-          new Promise<null>((resolve) => setTimeout(() => resolve(null), 120)),
+          new Promise<null>((resolve) => setTimeout(() => resolve(null), timeoutMs)),
         ]);
 
-        if (results && results.multiFaceLandmarks && results.multiFaceLandmarks.length > 0) {
-          landmarks = results.multiFaceLandmarks[0];
+        if (results) {
+          mediaPipeResponded = true;
           this.consecutiveFailures = 0;
-        } else {
+          if (results.multiFaceLandmarks && results.multiFaceLandmarks.length > 0) {
+            landmarks = results.multiFaceLandmarks[0];
+          }
+        } else if (sendErrored) {
           this.consecutiveFailures++;
           if (this.consecutiveFailures >= 5) {
-            // Disable MediaPipe if failing repeatedly, optical tracker takes over permanently
             this.isMediaPipeDisabled = true;
           }
         }
-      } catch (err) {
+      } catch {
         this.isFaceMeshBusy = false;
         this.consecutiveFailures++;
         if (this.consecutiveFailures >= 5) {
@@ -206,13 +226,35 @@ export class FaceMeshEngine {
           asymmetryDelta,
           isTrackingValid: !motionDetected && luma > 20,
           motionDetected,
+          hasLandmarks: true,
         };
       }
+
+      // Face landmarks detected but validation failed (too close/far/edge)
+      return {
+        foreheadRgb: [0, 0, 0],
+        luma: 0.0,
+        asymmetryDelta: 0.0,
+        isTrackingValid: false,
+        motionDetected,
+        hasLandmarks: true,
+      };
     }
 
-    // 4. Optical Center Forehead ROI Tracker Fallback:
-    // When MediaPipe is initializing, offline, or dropped landmarks, sample the upper-center
-    // forehead target zone within the UI oval guide frame.
+    // If MediaPipe is healthy and actively inspected the frame but found NO face:
+    // strictly report invalid tracking instead of fabricating measurements from background walls.
+    if (mediaPipeResponded || (this.hasSucceededOnce && this.isFaceMeshBusy)) {
+      return {
+        foreheadRgb: [0, 0, 0],
+        luma: 0.0,
+        asymmetryDelta: 0.0,
+        isTrackingValid: false,
+        motionDetected: false,
+        hasLandmarks: false,
+      };
+    }
+
+    // 4. Optical Center Forehead ROI Tracker Fallback (only if MediaPipe is unavailable/disabled):
     return this.extractOpticalCenterForeheadRgb(videoEl, videoWidth, videoHeight);
   }
 
@@ -279,15 +321,16 @@ export class FaceMeshEngine {
       const meanB = sumB / pixelCount;
       const luma = 0.299 * meanR + 0.587 * meanG + 0.114 * meanB;
 
-      // Validate skin tone locus: sufficient brightness and physiological reflection
-      const isSkinLocus = luma >= 12 && (meanR >= 16 || meanG >= 16);
+      // Validate skin tone locus: sufficient luminance and warm physiological reflectance
+      const isSkinLocus = luma >= 40 && meanR > 45 && meanR >= meanG;
 
       return {
         foreheadRgb: [meanR, meanG, meanB],
         luma,
-        asymmetryDelta: 0.035, // standard adult baseline symmetry
+        asymmetryDelta: 0.0,
         isTrackingValid: isSkinLocus,
         motionDetected: false,
+        hasLandmarks: false,
       };
     } catch {
       return {

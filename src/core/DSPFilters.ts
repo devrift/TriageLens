@@ -639,6 +639,58 @@ export class PeakDetector {
     return this.lastDetectedPeak;
   }
 
+  /**
+   * Compute Heart Rate Variability (HRV) and rhythm regularity statistics from recorded IBIs.
+   * Zero heap allocations inside calculation.
+   */
+  public getIbiStats(): {
+    count: number;
+    meanIbiMs: number;
+    sdnnMs: number;
+    rmssdMs: number;
+    coefficientOfVariation: number;
+  } {
+    const n = this.ibiCount;
+    if (n < 2) {
+      return { count: n, meanIbiMs: 0, sdnnMs: 0, rmssdMs: 0, coefficientOfVariation: 0 };
+    }
+
+    const len = this.ibiHistory.length;
+    let sum = 0.0;
+    for (let i = 0; i < n; i++) {
+      sum += this.ibiHistory[(this.ibiHead + i) % len];
+    }
+    const meanIbiMs = sum / n;
+
+    let varSum = 0.0;
+    let succDiffSqSum = 0.0;
+    let prevIbi = this.ibiHistory[this.ibiHead % len];
+
+    for (let i = 0; i < n; i++) {
+      const ibi = this.ibiHistory[(this.ibiHead + i) % len];
+      const diff = ibi - meanIbiMs;
+      varSum += diff * diff;
+
+      if (i > 0) {
+        const succDiff = ibi - prevIbi;
+        succDiffSqSum += succDiff * succDiff;
+        prevIbi = ibi;
+      }
+    }
+
+    const sdnnMs = Math.sqrt(varSum / n);
+    const rmssdMs = Math.sqrt(succDiffSqSum / (n - 1));
+    const coefficientOfVariation = meanIbiMs > 1e-4 ? sdnnMs / meanIbiMs : 0.0;
+
+    return {
+      count: n,
+      meanIbiMs,
+      sdnnMs,
+      rmssdMs,
+      coefficientOfVariation,
+    };
+  }
+
   private getMedianIbi(): number {
     if (this.ibiCount === 0) return 0.0;
 

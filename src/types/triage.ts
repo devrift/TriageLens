@@ -23,6 +23,10 @@ export type FailureReason =
   | 'POOR_SNR'
   | 'CAMERA_ERROR';
 
+export type PulseRhythmStatus = 'Regular' | 'Irregular' | 'N/A';
+
+export type StressLevel = 'Low' | 'Moderate' | 'Elevated' | 'N/A';
+
 /**
  * Verified vital sign telemetry payload emitted upon acquisition and analysis.
  */
@@ -35,6 +39,25 @@ export interface VitalsTelemetry {
   rawWaveformSample: number;
   filteredWaveformSample: number;
   snrDb?: number;
+  pulseRhythm?: PulseRhythmStatus;
+  stressLevel?: StressLevel;
+  hrvRmssdMs?: number;
+  hasFacialLandmarks?: boolean;
+}
+
+/**
+ * Real-time intermediate telemetry emitted during active acceptable acquisition.
+ */
+export interface LiveTelemetrySnapshot {
+  heartRateBpm: number | null;
+  respirationRateRpm: number | null;
+  strokeAsymmetryDelta: number | null;
+  sqiScore: number | null;
+  pulseRhythm: PulseRhythmStatus | null;
+  stressLevel: StressLevel | null;
+  hrvRmssdMs: number | null;
+  luma: number;
+  isQualityAcceptable: boolean;
 }
 
 /**
@@ -91,6 +114,7 @@ export interface FaceTrackingResult {
   asymmetryDelta: number;
   isTrackingValid: boolean;
   motionDetected: boolean;
+  hasLandmarks?: boolean;
 }
 
 /**

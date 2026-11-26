@@ -3,6 +3,7 @@ import { FingerEngine } from '../FingerEngine';
 import { FaceMeshEngine } from '../FaceMeshEngine';
 import { TriageCoordinator } from '../TriageCoordinator';
 import { CameraStreamManager } from '../CameraStreamManager';
+import { PeakDetector } from '../DSPFilters';
 import { CameraStreamError } from '../../types/triage';
 
 describe('Engine Integration & Subsystem Tests', () => {
@@ -256,6 +257,31 @@ describe('Engine Integration & Subsystem Tests', () => {
       const asymmetry = FaceMeshEngine.calculateStrokeAsymmetry(landmarks);
       expect(asymmetry).toBe(0.0);
       expect(Number.isFinite(asymmetry)).toBe(true);
+    });
+  });
+
+  describe('HRV & Rhythm Real Calculation', () => {
+    it('computes real IBI stats (SDNN, RMSSD, CV) from steady 75 BPM sinus peaks', () => {
+      const detector = new PeakDetector();
+      const fs = 30;
+      const freqHz = 75 / 60; // 1.25 Hz
+      for (let i = 0; i < 300; i++) {
+        const tsMs = (i / fs) * 1000;
+        const val = Math.sin(2 * Math.PI * freqHz * (i / fs));
+        detector.process(tsMs, val);
+      }
+      const stats = detector.getIbiStats();
+      expect(stats.count).toBeGreaterThanOrEqual(4);
+      expect(Math.abs(stats.meanIbiMs - 800)).toBeLessThan(15);
+      expect(stats.coefficientOfVariation).toBeLessThan(0.05);
+      expect(Number.isFinite(stats.rmssdMs)).toBe(true);
+    });
+
+    it('reports configured idle diagnostics accurately before stream acquisition', () => {
+      const manager = new CameraStreamManager();
+      const diag = manager.getDiagnostics();
+      expect(diag.active).toBe(false);
+      expect(diag.torchOn).toBe(false);
     });
   });
 });

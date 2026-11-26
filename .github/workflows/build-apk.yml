@@ -62,8 +62,8 @@ jobs:
           fi
           FILE_SIZE=$(stat -c%s "$APK_PATH")
           echo "Built APK size: $FILE_SIZE bytes"
-          if [ "$FILE_SIZE" -lt 3000000 ]; then
-            echo "ERROR: APK size ($FILE_SIZE bytes) is below minimum valid threshold of 3 MB"
+          if [ "$FILE_SIZE" -lt 5000000 ]; then
+            echo "ERROR: APK size ($FILE_SIZE bytes) is below minimum valid threshold of 5 MB"
             exit 1
           fi
           echo "SUCCESS: Valid Android APK compiled ($((FILE_SIZE / 1024 / 1024)) MB)"

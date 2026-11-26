@@ -13,8 +13,11 @@
 
 import {
   CoordinatorConfig,
+  LiveTelemetrySnapshot,
+  PulseRhythmStatus,
   QualityDiagnostic,
   ScanMode,
+  StressLevel,
   TriageState,
   VitalsTelemetry,
 } from '../types/triage';
@@ -34,6 +37,7 @@ export interface TriageCoordinatorCallbacks {
   onStateChange?: (state: TriageState) => void;
   onWaveformSample?: (sample: number, timestamp: number) => void;
   onQualityDiagnostic?: (diagnostic: QualityDiagnostic) => void;
+  onLiveTelemetry?: (snapshot: LiveTelemetrySnapshot) => void;
   onScanComplete?: (telemetry: VitalsTelemetry) => void;
   onError?: (error: Error) => void;
 }
@@ -71,12 +75,15 @@ export class TriageCoordinator {
   private isRunning: boolean = false;
   private stateStartTime: number = 0;
   private lastQualityFailureTimestamp: number = 0;
+  private lastLiveTelemetryEmitTime: number = 0;
   private attachedVideoEl: HTMLVideoElement | null = null;
+  private cameraResolution: { width: number; height: number } = { width: 640, height: 480 };
 
   // Buffers for final analysis
   private readonly acquiredSamples: number[] = [];
   private readonly acquiredRawSamples: number[] = [];
   private readonly asymmetryScores: number[] = [];
+  private hasDetectedFaceLandmarks: boolean = false;
   private latestRawSample: number = 0;
   private latestFilteredSample: number = 0;
 
@@ -84,6 +91,7 @@ export class TriageCoordinator {
   public onStateChange: ((state: TriageState) => void) | null = null;
   public onWaveformSample: ((sample: number, timestamp: number) => void) | null = null;
   public onQualityDiagnostic: ((diagnostic: QualityDiagnostic) => void) | null = null;
+  public onLiveTelemetry: ((snapshot: LiveTelemetrySnapshot) => void) | null = null;
   public onScanComplete: ((telemetry: VitalsTelemetry) => void) | null = null;
   public onError: ((error: Error) => void) | null = null;
 
@@ -103,6 +111,7 @@ export class TriageCoordinator {
       this.onStateChange = callbacks.onStateChange ?? null;
       this.onWaveformSample = callbacks.onWaveformSample ?? null;
       this.onQualityDiagnostic = callbacks.onQualityDiagnostic ?? null;
+      this.onLiveTelemetry = callbacks.onLiveTelemetry ?? null;
       this.onScanComplete = callbacks.onScanComplete ?? null;
       this.onError = callbacks.onError ?? null;
     }
@@ -124,10 +133,29 @@ export class TriageCoordinator {
     return this.config;
   }
 
+  public getCameraManager(): CameraStreamManager {
+    return this.cameraManager;
+  }
+
+  public getFaceEngineStatus(): { initialized: boolean; mediaPipeActive: boolean; fallbackActive: boolean } {
+    return this.faceEngine
+      ? this.faceEngine.getDiagnosticStatus()
+      : { initialized: false, mediaPipeActive: false, fallbackActive: false };
+  }
+
+  public setCameraResolution(width: number, height: number): void {
+    this.cameraResolution = { width, height };
+  }
+
+  public getCameraResolution(): { width: number; height: number } {
+    return this.cameraResolution;
+  }
+
   public setCallbacks(callbacks: TriageCoordinatorCallbacks): void {
     if (callbacks.onStateChange !== undefined) this.onStateChange = callbacks.onStateChange;
     if (callbacks.onWaveformSample !== undefined) this.onWaveformSample = callbacks.onWaveformSample;
     if (callbacks.onQualityDiagnostic !== undefined) this.onQualityDiagnostic = callbacks.onQualityDiagnostic;
+    if (callbacks.onLiveTelemetry !== undefined) this.onLiveTelemetry = callbacks.onLiveTelemetry;
     if (callbacks.onScanComplete !== undefined) this.onScanComplete = callbacks.onScanComplete;
     if (callbacks.onError !== undefined) this.onError = callbacks.onError;
   }
@@ -141,9 +169,6 @@ export class TriageCoordinator {
 
   /**
    * Start a clinical vital signs acquisition session.
-   * 
-   * @param mode 'face' for contactless facial rPPG + FAST stroke geometry; 'finger' for rear camera contact PPG.
-   * @param videoEl Video element displaying and decoding camera stream.
    */
   public async startScan(mode: ScanMode, videoEl: HTMLVideoElement): Promise<void> {
     if (this.isRunning) {
@@ -160,12 +185,15 @@ export class TriageCoordinator {
         if (!this.faceEngine) {
           this.faceEngine = new FaceMeshEngine();
         }
-        await this.cameraManager.startFaceStream(videoEl);
+        await this.cameraManager.startFaceStream(videoEl, this.cameraResolution);
       } else {
         if (!this.fingerEngine) {
           this.fingerEngine = new FingerEngine();
         }
-        await this.cameraManager.startFingerStream(videoEl);
+        const fingerRes = this.cameraResolution.width <= 320
+          ? this.cameraResolution
+          : { width: 320, height: 240 };
+        await this.cameraManager.startFingerStream(videoEl, fingerRes);
       }
 
       this.isRunning = true;
@@ -188,9 +216,11 @@ export class TriageCoordinator {
     this.acquiredSamples.length = 0;
     this.acquiredRawSamples.length = 0;
     this.asymmetryScores.length = 0;
+    this.hasDetectedFaceLandmarks = false;
     this.latestRawSample = 0;
     this.latestFilteredSample = 0;
     this.lastQualityFailureTimestamp = 0;
+    this.lastLiveTelemetryEmitTime = 0;
   }
 
   private scheduleNextFrame(): void {
@@ -215,6 +245,7 @@ export class TriageCoordinator {
     let b = 0;
     let isTrackingOrPlacementValid = false;
     let strokeAsymmetry = 0.0;
+    let frameHasLandmarks = false;
 
     try {
       if (this.mode === 'face') {
@@ -226,6 +257,10 @@ export class TriageCoordinator {
             b = faceResult.foreheadRgb[2];
             strokeAsymmetry = faceResult.asymmetryDelta;
             isTrackingOrPlacementValid = true;
+            frameHasLandmarks = Boolean(faceResult.hasLandmarks);
+            if (frameHasLandmarks) {
+              this.hasDetectedFaceLandmarks = true;
+            }
           }
         }
       } else {
@@ -308,9 +343,9 @@ export class TriageCoordinator {
         }
       }
 
-      // Resample and process signals
+      // Resample and process signals strictly when tracking/luminance is valid
       if (isTrackingOrPlacementValid) {
-        if (this.mode === 'face') {
+        if (this.mode === 'face' && frameHasLandmarks) {
           this.asymmetryScores.push(strokeAsymmetry);
         }
 
@@ -323,6 +358,17 @@ export class TriageCoordinator {
           });
         });
       }
+
+      // Emit real intermediate live telemetry ONLY during ACQUIRING when signal is acceptable
+      if (
+        this.state === 'ACQUIRING' &&
+        isAcceptable &&
+        this.onLiveTelemetry &&
+        now - this.lastLiveTelemetryEmitTime >= 300
+      ) {
+        this.lastLiveTelemetryEmitTime = now;
+        this.emitLiveTelemetrySnapshot(rawLuma, sqiResult);
+      }
     } catch (err: any) {
       this.transitionTo('FAILED');
       this.onError?.(err instanceof Error ? err : new Error(String(err)));
@@ -331,6 +377,72 @@ export class TriageCoordinator {
     }
 
     this.scheduleNextFrame();
+  }
+
+  private computeRhythmAndStress(): {
+    pulseRhythm: PulseRhythmStatus | null;
+    stressLevel: StressLevel | null;
+    hrvRmssdMs: number | null;
+  } {
+    const ibiStats = this.peakDetector.getIbiStats();
+    if (ibiStats.count < 3) {
+      return { pulseRhythm: null, stressLevel: null, hrvRmssdMs: null };
+    }
+    const pulseRhythm: PulseRhythmStatus = ibiStats.coefficientOfVariation <= 0.14 ? 'Regular' : 'Irregular';
+    const stressLevel: StressLevel =
+      ibiStats.rmssdMs >= 42 ? 'Low' : ibiStats.rmssdMs >= 22 ? 'Moderate' : 'Elevated';
+
+    return {
+      pulseRhythm,
+      stressLevel,
+      hrvRmssdMs: Math.round(ibiStats.rmssdMs * 10) / 10,
+    };
+  }
+
+  private emitLiveTelemetrySnapshot(
+    rawLuma: number,
+    sqiEval: { sqi: number; snrDb: number; peakFreqHz: number }
+  ): void {
+    const peakBpm = this.peakDetector.getCurrentBpm();
+    const fftBpm = sqiEval.peakFreqHz * 60.0;
+    let liveBpm: number | null = null;
+
+    if (fftBpm >= 38.0 && fftBpm <= 200.0 && this.sqiEngine.isBufferFull()) {
+      if (peakBpm >= 35.0 && peakBpm <= 220.0 && Math.abs(peakBpm - fftBpm) <= 4.0) {
+        liveBpm = Math.round((0.5 * peakBpm + 0.5 * fftBpm) * 10) / 10;
+      } else {
+        liveBpm = Math.round(fftBpm * 10) / 10;
+      }
+    } else if (peakBpm >= 35.0 && peakBpm <= 220.0) {
+      liveBpm = Math.round(peakBpm * 10) / 10;
+    }
+
+    const liveRr =
+      this.acquiredRawSamples.length >= 90
+        ? Math.round(this.estimateRespirationRate(this.acquiredRawSamples, this.config.sampleRateHz) * 10) / 10
+        : null;
+
+    let liveAsym: number | null = null;
+    if (this.mode === 'face' && this.hasDetectedFaceLandmarks && this.asymmetryScores.length > 0) {
+      const sorted = [...this.asymmetryScores].sort((a, b) => a - b);
+      const mid = Math.floor(sorted.length / 2);
+      const med = sorted.length % 2 === 0 ? (sorted[mid - 1] + sorted[mid]) / 2 : sorted[mid];
+      liveAsym = Math.round(med * 1000) / 1000;
+    }
+
+    const { pulseRhythm, stressLevel, hrvRmssdMs } = this.computeRhythmAndStress();
+
+    this.onLiveTelemetry?.({
+      heartRateBpm: liveBpm,
+      respirationRateRpm: liveRr,
+      strokeAsymmetryDelta: liveAsym,
+      sqiScore: this.sqiEngine.isBufferFull() ? Math.round(sqiEval.sqi * 1000) / 1000 : null,
+      pulseRhythm,
+      stressLevel,
+      hrvRmssdMs,
+      luma: rawLuma,
+      isQualityAcceptable: true,
+    });
   }
 
   /**
@@ -404,6 +516,8 @@ export class TriageCoordinator {
       finalAsymmetry = sorted.length % 2 === 0 ? (sorted[mid - 1] + sorted[mid]) / 2 : sorted[mid];
     }
 
+    const { pulseRhythm, stressLevel, hrvRmssdMs } = this.computeRhythmAndStress();
+
     const telemetry: VitalsTelemetry = {
       timestamp: typeof performance !== 'undefined' ? performance.now() : Date.now(),
       heartRateBpm: Math.round(finalBpm * 10) / 10,
@@ -413,6 +527,10 @@ export class TriageCoordinator {
       rawWaveformSample: this.latestRawSample,
       filteredWaveformSample: this.latestFilteredSample,
       snrDb: Math.round(sqiEval.snrDb * 10) / 10,
+      pulseRhythm: pulseRhythm ?? 'N/A',
+      stressLevel: stressLevel ?? 'N/A',
+      hrvRmssdMs: hrvRmssdMs ?? undefined,
+      hasFacialLandmarks: this.hasDetectedFaceLandmarks,
     };
 
     this.transitionTo('COMPLETE');
@@ -539,6 +657,7 @@ export class TriageCoordinator {
     this.onStateChange = null;
     this.onWaveformSample = null;
     this.onQualityDiagnostic = null;
+    this.onLiveTelemetry = null;
     this.onScanComplete = null;
     this.onError = null;
   }

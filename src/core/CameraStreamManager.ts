@@ -8,20 +8,41 @@
 
 import { CameraStreamError } from '../types/triage';
 
+export interface CameraDiagnostics {
+  active: boolean;
+  facingMode: 'user' | 'environment' | null;
+  width: number;
+  height: number;
+  frameRate: number;
+  torchSupported: boolean;
+  torchOn: boolean;
+}
+
 export class CameraStreamManager {
   private currentStream: MediaStream | null = null;
   private attachedVideoEl: HTMLVideoElement | null = null;
   private isTorchActive: boolean = false;
+  private torchSupported: boolean = false;
   private activeRequestId: number = 0;
   private inFlightAcquire: Promise<MediaStream> | null = null;
   private activeFacingMode: 'user' | 'environment' | null = null;
+  private activeResolution: { width: number; height: number } | null = null;
 
   /**
-   * Start front-facing camera stream optimized for facial rPPG telemetry:
-   * 640x480 @ 30 FPS ideal constraints.
+   * Start front-facing camera stream optimized for facial rPPG telemetry.
    */
-  public async startFaceStream(videoEl: HTMLVideoElement): Promise<MediaStream> {
-    if (this.currentStream && this.currentStream.active && this.activeFacingMode === 'user' && this.attachedVideoEl === videoEl) {
+  public async startFaceStream(
+    videoEl: HTMLVideoElement,
+    resolution: { width: number; height: number } = { width: 640, height: 480 }
+  ): Promise<MediaStream> {
+    if (
+      this.currentStream &&
+      this.currentStream.active &&
+      this.activeFacingMode === 'user' &&
+      this.attachedVideoEl === videoEl &&
+      this.activeResolution?.width === resolution.width &&
+      this.activeResolution?.height === resolution.height
+    ) {
       return this.currentStream;
     }
 
@@ -29,21 +50,30 @@ export class CameraStreamManager {
       audio: false,
       video: {
         facingMode: 'user',
-        width: { ideal: 640 },
-        height: { ideal: 480 },
+        width: { ideal: resolution.width },
+        height: { ideal: resolution.height },
         frameRate: { ideal: 30 },
       },
     };
 
-    return this.acquireStream(videoEl, constraints, false, 'user');
+    return this.acquireStream(videoEl, constraints, false, 'user', resolution);
   }
 
   /**
-   * Start rear-facing camera stream optimized for finger-contact PPG transillumination:
-   * 320x240 @ 30 FPS ideal constraints with white LED torch engaged when supported.
+   * Start rear-facing camera stream optimized for finger-contact PPG transillumination.
    */
-  public async startFingerStream(videoEl: HTMLVideoElement): Promise<MediaStream> {
-    if (this.currentStream && this.currentStream.active && this.activeFacingMode === 'environment' && this.attachedVideoEl === videoEl) {
+  public async startFingerStream(
+    videoEl: HTMLVideoElement,
+    resolution: { width: number; height: number } = { width: 320, height: 240 }
+  ): Promise<MediaStream> {
+    if (
+      this.currentStream &&
+      this.currentStream.active &&
+      this.activeFacingMode === 'environment' &&
+      this.attachedVideoEl === videoEl &&
+      this.activeResolution?.width === resolution.width &&
+      this.activeResolution?.height === resolution.height
+    ) {
       return this.currentStream;
     }
 
@@ -51,13 +81,13 @@ export class CameraStreamManager {
       audio: false,
       video: {
         facingMode: 'environment',
-        width: { ideal: 320 },
-        height: { ideal: 240 },
+        width: { ideal: resolution.width },
+        height: { ideal: resolution.height },
         frameRate: { ideal: 30 },
       },
     };
 
-    return this.acquireStream(videoEl, constraints, true, 'environment');
+    return this.acquireStream(videoEl, constraints, true, 'environment', resolution);
   }
 
   /**
@@ -67,18 +97,25 @@ export class CameraStreamManager {
     videoEl: HTMLVideoElement,
     constraints: MediaStreamConstraints,
     attemptTorch: boolean,
-    facingMode: 'user' | 'environment'
+    facingMode: 'user' | 'environment',
+    resolution: { width: number; height: number }
   ): Promise<MediaStream> {
     // If an acquisition with matching parameters is already in flight, await it
-    if (this.inFlightAcquire && this.activeFacingMode === facingMode) {
+    if (
+      this.inFlightAcquire &&
+      this.activeFacingMode === facingMode &&
+      this.activeResolution?.width === resolution.width
+    ) {
       return this.inFlightAcquire;
     }
 
     const requestId = ++this.activeRequestId;
     this.activeFacingMode = facingMode;
+    this.activeResolution = resolution;
 
     const acquirePromise: Promise<MediaStream> = (async (): Promise<MediaStream> => {
-      this.stopStream(videoEl);
+      // Release previous stream WITHOUT bumping activeRequestId so we don't invalidate ourselves
+      this.releaseActiveStream(videoEl);
 
       if (typeof navigator === 'undefined' || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
         throw new CameraStreamError('CAMERA_NOT_FOUND', 'MediaDevices API is not supported in this runtime environment.');
@@ -110,6 +147,11 @@ export class CameraStreamManager {
       if (!videoTrack) {
         throw new CameraStreamError('CAMERA_NOT_FOUND', 'MediaStream contains no video tracks.');
       }
+
+      const caps = typeof videoTrack.getCapabilities === 'function'
+        ? (videoTrack.getCapabilities() as any)
+        : null;
+      this.torchSupported = Boolean(caps && caps.torch);
 
       if (attemptTorch) {
         await this.applyTorchSafely(videoTrack);
@@ -145,21 +187,22 @@ export class CameraStreamManager {
   /**
    * Inspect track capabilities and engage torch if supported, gracefully handling errors.
    */
-  public async applyTorchSafely(videoTrack: MediaStreamTrack): Promise<boolean> {
+  public async applyTorchSafely(videoTrack: MediaStreamTrack, enable: boolean = true): Promise<boolean> {
     const capabilities = typeof videoTrack.getCapabilities === 'function'
       ? (videoTrack.getCapabilities() as any)
       : null;
 
-    if (!capabilities || !capabilities.torch) {
+    this.torchSupported = Boolean(capabilities && capabilities.torch);
+    if (!this.torchSupported) {
       this.isTorchActive = false;
       return false;
     }
 
     try {
       await videoTrack.applyConstraints({
-        advanced: [{ torch: true } as any],
+        advanced: [{ torch: enable } as any],
       });
-      this.isTorchActive = true;
+      this.isTorchActive = enable;
       return true;
     } catch {
       this.isTorchActive = false;
@@ -167,13 +210,22 @@ export class CameraStreamManager {
     }
   }
 
+  public async setTorch(enable: boolean): Promise<boolean> {
+    if (!this.currentStream) return false;
+    const track = this.currentStream.getVideoTracks()[0];
+    if (!track) return false;
+    return this.applyTorchSafely(track, enable);
+  }
+
   /**
-   * Stop active camera stream, release all tracks, detach video element, and reset torch.
+   * Stop active camera stream, invalidate pending acquisitions, release tracks, and detach video element.
    */
   public stopStream(videoEl?: HTMLVideoElement): void {
-    // Invalidate any in-flight stream requests
     this.activeRequestId++;
+    this.releaseActiveStream(videoEl);
+  }
 
+  private releaseActiveStream(videoEl?: HTMLVideoElement): void {
     if (this.currentStream) {
       const tracks = this.currentStream.getTracks();
       for (let i = 0; i < tracks.length; i++) {
@@ -200,11 +252,29 @@ export class CameraStreamManager {
     this.isTorchActive = false;
   }
 
+  public getDiagnostics(): CameraDiagnostics {
+    const track = this.currentStream?.getVideoTracks()[0];
+    const settings = track && typeof track.getSettings === 'function' ? track.getSettings() : null;
+    return {
+      active: Boolean(this.currentStream && this.currentStream.active),
+      facingMode: this.activeFacingMode,
+      width: settings?.width ?? this.activeResolution?.width ?? 0,
+      height: settings?.height ?? this.activeResolution?.height ?? 0,
+      frameRate: Math.round(settings?.frameRate ?? 0),
+      torchSupported: this.torchSupported,
+      torchOn: this.isTorchActive,
+    };
+  }
+
   public getStream(): MediaStream | null {
     return this.currentStream;
   }
 
   public isTorchOn(): boolean {
     return this.isTorchActive;
+  }
+
+  public isTorchSupported(): boolean {
+    return this.torchSupported;
   }
 }
